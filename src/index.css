@@ -75,6 +75,30 @@
   --sidebar-border: oklch(0.922 0 0);
   --sidebar-ring: oklch(0.708 0 0);
   --signup-card-bg: rgba(15, 23, 42, 0.85);
+  
+  /* Input Theme Variables */
+  --input-primary-bg: rgba(31, 41, 55, 0.5);
+  --input-primary-border: #374151;
+  --input-primary-text: white;
+  --input-primary-placeholder: #9ca3af;
+  --input-primary-focus-border: #06b6d4;
+  --input-primary-focus-shadow: rgba(6, 182, 212, 0.1);
+  
+  /* Input Dark Variant */
+  --input-dark-bg: rgba(15, 23, 42, 0.8);
+  --input-dark-border: #1e293b;
+  --input-dark-text: white;
+  --input-dark-placeholder: #64748b;
+  --input-dark-focus-border: #06b6d4;
+  --input-dark-focus-shadow: rgba(6, 182, 212, 0.15);
+  
+  /* Input Light Variant */
+  --input-light-bg: white;
+  --input-light-border: #d1d5db;
+  --input-light-text: #111827;
+  --input-light-placeholder: #6b7280;
+  --input-light-focus-border: #3b82f6;
+  --input-light-focus-shadow: rgba(59, 130, 246, 0.1);
 }
 
 .dark {
@@ -159,18 +183,7 @@
     }
   }
   
-  /* Input focus effects */
-  .input-glow:focus {
-    box-shadow: 0 0 0 3px rgba(6, 182, 212, 0.1);
-    border-color: #06b6d4 !important;
-  }
-
-  /* Ensure all form inputs have cyan focus border */
-  input:focus {
-    border-color: #06b6d4 !important;
-    box-shadow: 0 0 0 3px rgba(6, 182, 212, 0.1) !important;
-    outline: none !important;
-  }
+  /* Input focus effects - now handled by variants */
   
   /* Button hover effects */
   .btn-gradient-hover {

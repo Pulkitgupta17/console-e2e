@@ -11,6 +11,7 @@ import { cn } from "@/lib/utils"
 import { useState } from "react"
 import PhoneInput from 'react-phone-input-2'
 import 'react-phone-input-2/lib/style.css'
+import OtpVerification from './otp-verification'
 
 function Signup({
   className,
@@ -18,6 +19,20 @@ function Signup({
 }: React.ComponentProps<"div">) {
   const [showPassword, setShowPassword] = useState(false)
   const [phoneNumber, setPhoneNumber] = useState('')
+  const [showOtpVerification, setShowOtpVerification] = useState(false)
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault()
+    setShowOtpVerification(true)
+  }
+
+  const handleBackFromOtp = () => {
+    setShowOtpVerification(false)
+  }
+
+  if (showOtpVerification) {
+    return <OtpVerification onBack={handleBackFromOtp} />
+  }
 
   return (
     <div className={cn("w-full max-w-md mx-auto", className)} {...props}>
@@ -31,14 +46,15 @@ function Signup({
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <form className="space-y-4 mt-8">
+          <form className="space-y-4 mt-8" onSubmit={handleSubmit}>
             <div className="space-y-4">
               <div className="space-y-2">
                 <Input
                   id="name"
                   type="text"
                   placeholder="Enter your name"
-                  className="bg-gray-800/50 border-gray-700 text-white placeholder:text-gray-500 input-glow focus:border-cyan-500 h-14"
+                  variant="primary"
+                  size="xl"
                   required
                 />
               </div>
@@ -57,7 +73,8 @@ function Signup({
                   id="email"
                   type="email"
                   placeholder="Enter your email"
-                  className="bg-gray-800/50 border-gray-700 text-white placeholder:text-gray-500 input-glow focus:border-cyan-500 h-14"
+                  variant="primary"
+                  size="xl"
                   required
                 />
               </div>
@@ -68,7 +85,9 @@ function Signup({
                     id="password"
                     type={showPassword ? "text" : "password"}
                     placeholder="Create a password"
-                    className="bg-gray-800/50 border-gray-700 text-white placeholder:text-gray-500 input-glow focus:border-cyan-500 pr-10 h-14"
+                    variant="primary"
+                    size="xl"
+                    className="pr-10"
                     required
                   />
                   <button
