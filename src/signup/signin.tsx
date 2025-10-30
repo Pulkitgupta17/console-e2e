@@ -7,15 +7,51 @@ import {
   CardTitle,
 } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
 import { cn } from "@/lib/utils"
 import { useState } from "react"
+import { useNavigate } from "react-router-dom"
+import { Eye, EyeOff } from "lucide-react"
+import { zodResolver } from "@hookform/resolvers/zod";
+import { useForm, type SubmitHandler } from "react-hook-form";
+import { z } from "zod";
+import { toast } from "sonner";
+
+const schema = z.object({
+  email: z.string().email({ message: "Invalid email address" }),
+  password: z.string().min(8, { message: "Password must be at least 8 characters long" }),
+});
+type FormFields = z.infer<typeof schema>;
 
 function Signin({
   className,
   ...props
 }: React.ComponentProps<"div">) {
+  const { register, handleSubmit, watch, formState: {isSubmitting, isValid} } = useForm<FormFields>({
+    defaultValues: {
+      email: "",
+      password: "",
+    },
+    resolver: zodResolver(schema),
+  });
   const [showPassword, setShowPassword] = useState(false)
+  const navigate = useNavigate()
+
+  const handleForgotPassword = () => {
+    if (!watch("email").trim()) {
+      toast.error("Please enter your email address first");
+      return;
+    }
+    toast.success("Password reset link sent to your email!");
+  };
+
+  const onSubmit: SubmitHandler<FormFields> = async (data) => {
+    try {
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+      console.log(data);
+    } catch (error) {
+      console.error(error);
+    }
+  };
 
   return (
     <div className={cn("w-full min-w-md mx-auto", className)} {...props}>
@@ -29,7 +65,7 @@ function Signin({
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <form className="space-y-4 mt-8">
+          <form className="space-y-4 mt-8" onSubmit={handleSubmit(onSubmit)}>
             <div className="space-y-4">
               <div className="space-y-2">
                 <Input
@@ -38,6 +74,7 @@ function Signin({
                   placeholder="Email"
                   className="bg-gray-800/50 border-gray-700 text-white placeholder:text-gray-500 input-glow focus:border-cyan-500 h-14"
                   required
+                  {...register("email")}
                 />
               </div>
               
@@ -49,22 +86,14 @@ function Signin({
                     placeholder="Password"
                     className="bg-gray-800/50 border-gray-700 text-white placeholder:text-gray-500 input-glow focus:border-cyan-500 pr-10 h-14"
                     required
+                    {...register("password")}
                   />
                   <button
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
                     className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-300"
                   >
-                    {showPassword ? (
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.878 9.878L3 3m6.878 6.878L21 21" />
-                      </svg>
-                    ) : (
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                      </svg>
-                    )}
+                    {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                   </button>
                 </div>
               </div>
@@ -80,9 +109,11 @@ function Signin({
                     Remember me
                   </label>
                 </div>
-                <a href="#" className="text-sm text-cyan-400 hover:text-cyan-300">
-                  Forgot password?
-                </a>
+                <button
+                  type="button"
+                  onClick={handleForgotPassword}
+                  className="text-sm text-cyan-400 hover:text-cyan-300"
+                >Forgot password?</button>
               </div>
               
               <div className="space-y-2">
@@ -90,8 +121,9 @@ function Signin({
                   type="submit" 
                   variant="signup" 
                   size="xl"
+                  disabled={isSubmitting || !isValid}
                 >
-                  Sign In
+                  {isSubmitting ? "Signing In..." : "Sign In"}
                 </Button>
               </div>
               
@@ -132,9 +164,13 @@ function Signin({
               
               <p className="text-center text-gray-400 text-sm mt-8 mb-2">
                 Don&apos;t have an account?{" "}
-                <a href="#" className="text-cyan-400 hover:text-cyan-300">
+                <button
+                  type="button"
+                  onClick={() => navigate('/accounts/signup')}
+                  className="text-cyan-400 hover:text-cyan-300"
+                >
                   Sign up
-                </a>
+                </button>
               </p>
             </div>
           </form>

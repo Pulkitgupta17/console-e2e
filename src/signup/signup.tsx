@@ -12,19 +12,95 @@ import { useState } from "react"
 import PhoneInput from 'react-phone-input-2'
 import 'react-phone-input-2/lib/style.css'
 import OtpVerification from './otp-verification'
+import { zodResolver } from "@hookform/resolvers/zod";
+import { useForm, type SubmitHandler } from "react-hook-form";
+import { z } from "zod";
+import { Eye, EyeOff, Check, X } from "lucide-react";
+import { useNavigate } from 'react-router-dom'
+
+const schema = z.object({
+  name: z.string().min(1, { message: "Name is required" }),
+  email: z.string().email({ message: "Invalid email address" }),
+  password: z.string().min(8, { message: "Password must be at least 8 characters long" }),
+  // phone: z.string().min(1, { message: "Phone number is required" }),
+});
+
+type FormFields = z.infer<typeof schema>;
 
 function Signup({
   className,
   ...props
 }: React.ComponentProps<"div">) {
+
+  const navigate = useNavigate()
+  const { register, handleSubmit, watch, formState: {isSubmitting, isValid} } = useForm<FormFields>({
+    defaultValues: {
+      name: "",
+      email: "",
+      password: "",
+      // phone: "",
+    },
+    resolver: zodResolver(schema),
+  });
   const [showPassword, setShowPassword] = useState(false)
   const [phoneNumber, setPhoneNumber] = useState('')
   const [showOtpVerification, setShowOtpVerification] = useState(false)
+  const calculatePasswordStrength = (password: string) => {
+    let score = 0;
+    const checks = {
+      length: password.length >= 8,
+      lowercase: /[a-z]/.test(password),
+      uppercase: /[A-Z]/.test(password),
+      numbers: /\d/.test(password),
+      special: /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(password)
+    };
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault()
-    setShowOtpVerification(true)
-  }
+    if (checks.length) score += 20;
+    if (checks.lowercase) score += 20;
+    if (checks.uppercase) score += 20;
+    if (checks.numbers) score += 20;
+    if (checks.special) score += 20;
+
+    let strength = 'weak';
+    let color = 'from-red-500 to-red-600';
+    let bgColor = 'bg-red-500/20';
+    let textColor = 'text-red-400';
+
+    if (score >= 80) {
+      strength = 'strong';
+      color = 'from-emerald-500 to-emerald-600';
+      bgColor = 'bg-emerald-500/20';
+      textColor = 'text-emerald-400';
+    } else if (score >= 60) {
+      strength = 'good';
+      color = 'from-cyan-500 to-cyan-600';
+      bgColor = 'bg-cyan-500/20';
+      textColor = 'text-cyan-400';
+    } else if (score >= 40) {
+      strength = 'fair';
+      color = 'from-yellow-500 to-yellow-600';
+      bgColor = 'bg-yellow-500/20';
+      textColor = 'text-yellow-400';
+    }
+
+    return { score, strength, color, bgColor, textColor, checks };
+  };
+
+  const passwordStrength = calculatePasswordStrength(watch("password"));
+
+  const onSubmit: SubmitHandler<FormFields> = async (data) => {
+    try {
+      const finalData = {
+        ...data,
+        phone: phoneNumber, 
+      };
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+      setShowOtpVerification(true);
+      console.log(finalData);
+    } catch (error) {
+      console.error(error);
+    }
+  };
 
   const handleBackFromOtp = () => {
     setShowOtpVerification(false)
@@ -46,7 +122,7 @@ function Signup({
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <form className="space-y-4 mt-8" onSubmit={handleSubmit}>
+          <form className="space-y-4 mt-8" onSubmit={handleSubmit(onSubmit)}>
             <div className="space-y-4">
               <div className="space-y-2">
                 <Input
@@ -56,6 +132,7 @@ function Signup({
                   variant="primary"
                   size="xl"
                   required
+                  {...register("name")}
                 />
               </div>
               
@@ -63,8 +140,9 @@ function Signup({
                 <PhoneInput
                   country={'in'}
                   value={phoneNumber}
-                  onChange={setPhoneNumber}
+                  onChange={(value) => setPhoneNumber(value)}
                   placeholder="Mobile No."
+                  // {...register("phone")}
                 />
               </div>
               
@@ -76,6 +154,7 @@ function Signup({
                   variant="primary"
                   size="xl"
                   required
+                  {...register("email")}
                 />
               </div>
               
@@ -89,24 +168,46 @@ function Signup({
                     size="xl"
                     className="pr-10"
                     required
+                    {...register("password")}
                   />
                   <button
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
                     className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-300"
                   >
-                    {showPassword ? (
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.878 9.878L3 3m6.878 6.878L21 21" />
-                      </svg>
-                    ) : (
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                      </svg>
-                    )}
+                    {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                   </button>
                 </div>
+
+                { watch("password") && (
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2">
+                      <div className="flex-1 h-2 bg-gray-700 rounded-full overflow-hidden">
+                        <div 
+                          className={`h-full bg-gradient-to-r ${passwordStrength.color} transition-all duration-300`}
+                          style={{ width: `${passwordStrength.score}%` }}
+                        />
+                      </div>
+                      <span className={`text-xs font-medium ${passwordStrength.textColor}`}>
+                        {passwordStrength.strength}
+                      </span>
+                    </div>
+                    
+                    <div className="grid grid-cols-2 gap-1 text-xs">
+                      {Object.entries(passwordStrength.checks).map(([check, passed]) => (
+                        <div key={check} className={`flex items-center gap-1 ${passed ? 'text-emerald-400' : 'text-gray-500'}`}>
+                          {passed ? <Check className="h-3 w-3" /> : <X className="h-3 w-3" />}
+                          <span className="capitalize">
+                            {check === 'length' ? '8+ chars' : 
+                            check === 'lowercase' ? 'lowercase' :
+                            check === 'uppercase' ? 'uppercase' :
+                            check === 'numbers' ? 'numbers' : 'special'}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
               
               <div className="space-y-2">
@@ -136,8 +237,9 @@ function Signup({
                   type="submit" 
                   variant="signup" 
                   size="xl"
+                  disabled={isSubmitting}
                 >
-                  Create Account
+                  {isSubmitting ? "Creating Account..." : "Create Account"}
                 </Button>
               </div>
               
@@ -178,9 +280,13 @@ function Signup({
               
               <p className="text-center text-gray-400 text-sm mt-8 mb-2">
                 Already have an account?{" "}
-                <a href="#" className="text-cyan-400 hover:text-cyan-300">
+                <button
+                  type="button"
+                  onClick={() => navigate('/accounts/signin')}
+                  className="text-cyan-400 hover:text-cyan-300"
+                >
                   Sign in
-                </a>
+                </button>
               </p>
             </div>
           </form>
