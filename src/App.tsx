@@ -1,13 +1,10 @@
-import { BrowserRouter } from 'react-router-dom'
-import { AppRoutes } from './projectSetup/routeConfig'
+import { AppRoutes } from './routes/routeConfig'
 import { Toaster } from 'sonner'
 
 function App() {
   return (
     <>
-    <BrowserRouter>
-      <AppRoutes />
-    </BrowserRouter>
+    <AppRoutes />
     <Toaster 
           position="top-right"
           theme="dark"

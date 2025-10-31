@@ -15,6 +15,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm, type SubmitHandler } from "react-hook-form";
 import { z } from "zod";
 import { toast } from "sonner";
+import { login } from "@/services/loginService"
 
 const schema = z.object({
   email: z.string().email({ message: "Invalid email address" }),
@@ -46,8 +47,8 @@ function Signin({
 
   const onSubmit: SubmitHandler<FormFields> = async (data) => {
     try {
-      await new Promise((resolve) => setTimeout(resolve, 1000));
-      console.log(data);
+      const response = await login(data.email, data.password);
+      console.log(response);
     } catch (error) {
       console.error(error);
     }
