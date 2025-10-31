@@ -16,6 +16,7 @@ import { useForm, type SubmitHandler } from "react-hook-form";
 import { z } from "zod";
 import { toast } from "sonner";
 import { login } from "@/services/loginService"
+import { GoogleReCaptchaProvider, useGoogleReCaptcha } from "react-google-recaptcha-v3";
 
 const schema = z.object({
   email: z.string().email({ message: "Invalid email address" }),
@@ -27,6 +28,7 @@ function Signin({
   className,
   ...props
 }: React.ComponentProps<"div">) {
+  const { executeRecaptcha } = useGoogleReCaptcha();
   const { register, handleSubmit, watch, formState: {isSubmitting, isValid} } = useForm<FormFields>({
     defaultValues: {
       email: "",
@@ -46,11 +48,30 @@ function Signin({
   };
 
   const onSubmit: SubmitHandler<FormFields> = async (data) => {
+    debugger
+    if (!executeRecaptcha) {
+      toast.error("Unable to execute reCAPTCHA. Please reload the page.");
+      return;
+    }
+
     try {
-      const response = await login(data.email, data.password);
-      console.log(response);
-    } catch (error) {
-      console.error(error);
+      const recaptchaToken = await executeRecaptcha("login");
+      
+      const response = await login(data.email, data.password, recaptchaToken, "v3");
+      
+      if (response.code === 200) {
+        toast.success("Login successful!");
+        console.log('Login successful:', response);
+      } else {
+        toast.error(response.message || "Login failed");
+      }
+    } catch (error: any) {
+      console.error('Login error:', error);
+      const errorMessage = error?.response?.data?.error || 
+                          error?.response?.data?.message || 
+                          error?.response?.data?.[0] ||
+                          "Login failed. Please try again.";
+      toast.error(errorMessage);
     }
   };
 
@@ -122,7 +143,7 @@ function Signin({
                   type="submit" 
                   variant="signup" 
                   size="xl"
-                  disabled={isSubmitting || !isValid}
+                  disabled={isSubmitting || !isValid || !executeRecaptcha}
                 >
                   {isSubmitting ? "Signing In..." : "Sign In"}
                 </Button>
@@ -181,4 +202,24 @@ function Signin({
   )
 }
 
-export default Signin
+// ReCaptcha Provider Wrapper
+const SigninWithRecaptcha = (props: React.ComponentProps<"div">) => {
+  const siteKey = "6LeJ7_4jAAAAAKqjyjQ2jEC4yJenDE6R8KyTu9Mt";
+  
+  if (!siteKey) {
+    console.error("VITE_RECAPTCHA_V3_SITE_KEY is not set");
+    return (
+      <div className="text-red-400 text-center p-4">
+        reCAPTCHA configuration error. Please contact support.
+      </div>
+    );
+  }
+
+  return (
+    <GoogleReCaptchaProvider reCaptchaKey={siteKey}>
+      <Signin {...props} />
+    </GoogleReCaptchaProvider>
+  );
+};
+
+export default SigninWithRecaptcha
