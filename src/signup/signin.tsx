@@ -12,11 +12,16 @@ import { useState } from "react"
 import { useNavigate } from "react-router-dom"
 import { Eye, EyeOff } from "lucide-react"
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useForm, type SubmitHandler } from "react-hook-form";
+import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { toast } from "sonner";
 import { login } from "@/services/loginService"
 import { GoogleReCaptchaProvider, useGoogleReCaptcha } from "react-google-recaptcha-v3";
+import { login as loginAction, logout, type User } from "@/store/authSlice";
+import { useAppDispatch } from "@/store/store";
+import CryptoJS from "crypto-js";
+import API from "@/axios";
+import TwoFactorAuth from "./twoFactorAuth";
 
 const schema = z.object({
   email: z.string().email({ message: "Invalid email address" }),
@@ -24,20 +29,24 @@ const schema = z.object({
 });
 type FormFields = z.infer<typeof schema>;
 
-function Signin({
-  className,
-  ...props
-}: React.ComponentProps<"div">) {
-  const { executeRecaptcha } = useGoogleReCaptcha();
-  const { register, handleSubmit, watch, formState: {isSubmitting, isValid} } = useForm<FormFields>({
-    defaultValues: {
-      email: "",
-      password: "",
-    },
+// Constants for 2FA verification
+const SUCCESS_TEXT = "success";
+const SUCCESS_FAILED_TEXT = "failed";
+const VERIFIED_FAILED_TEXT = "False";
+const VERIFIED_SUCCESS_TEXT = "True";
+
+// LoginForm component
+const LoginForm: React.FC<{
+  onSubmit: (data: FormFields) => Promise<void>;
+  isLoading: boolean;
+  error?: string | null;
+}> = ({ onSubmit, isLoading, error }) => {
+  const { register, handleSubmit, watch, formState: { isSubmitting, isValid } } = useForm<FormFields>({
+    defaultValues: { email: "", password: "" },
     resolver: zodResolver(schema),
   });
-  const [showPassword, setShowPassword] = useState(false)
-  const navigate = useNavigate()
+  const [showPassword, setShowPassword] = useState(false);
+  const navigate = useNavigate();
 
   const handleForgotPassword = () => {
     if (!watch("email").trim()) {
@@ -47,36 +56,8 @@ function Signin({
     toast.success("Password reset link sent to your email!");
   };
 
-  const onSubmit: SubmitHandler<FormFields> = async (data) => {
-    debugger
-    if (!executeRecaptcha) {
-      toast.error("Unable to execute reCAPTCHA. Please reload the page.");
-      return;
-    }
-
-    try {
-      const recaptchaToken = await executeRecaptcha("login");
-      
-      const response = await login(data.email, data.password, recaptchaToken, "v3");
-      
-      if (response.code === 200) {
-        toast.success("Login successful!");
-        console.log('Login successful:', response);
-      } else {
-        toast.error(response.message || "Login failed");
-      }
-    } catch (error: any) {
-      console.error('Login error:', error);
-      const errorMessage = error?.response?.data?.error || 
-                          error?.response?.data?.message || 
-                          error?.response?.data?.[0] ||
-                          "Login failed. Please try again.";
-      toast.error(errorMessage);
-    }
-  };
-
   return (
-    <div className={cn("w-full min-w-md mx-auto", className)} {...props}>
+    <div className="w-full min-w-md mx-auto">
       <Card className="border-gray-800/50 backdrop-blur-sm form-fade-in" style={{ backgroundColor: 'var(--signup-card-bg)' }}>
         <CardHeader className="text-left space-y-2">
           <CardTitle className="text-2xl font-bold text-white">
@@ -120,6 +101,12 @@ function Signin({
                 </div>
               </div>
               
+              {error && (
+                <div className="text-red-400 text-sm text-center">
+                  {typeof error === "string" ? error : JSON.stringify(error)}
+                </div>
+              )}
+
               <div className="flex items-center justify-between mt-6 mb-6">
                 <div className="flex items-center gap-2">
                   <input
@@ -143,9 +130,9 @@ function Signin({
                   type="submit" 
                   variant="signup" 
                   size="xl"
-                  disabled={isSubmitting || !isValid || !executeRecaptcha}
+                  disabled={isSubmitting || !isValid || isLoading}
                 >
-                  {isSubmitting ? "Signing In..." : "Sign In"}
+                  {isSubmitting || isLoading ? "Signing In..." : "Sign In"}
                 </Button>
               </div>
               
@@ -199,7 +186,206 @@ function Signin({
         </CardContent>
       </Card>
     </div>
-  )
+  );
+};
+
+// Main Signin component
+function Signin({
+  className,
+  ...props
+}: React.ComponentProps<"div">) {
+  const { executeRecaptcha } = useGoogleReCaptcha();
+  const dispatch = useAppDispatch();
+  const navigate = useNavigate();
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [show2FA, setShow2FA] = useState(false);
+
+  const checkFor2faOrDashboard = async (respData: any) => {
+    if (!executeRecaptcha) {
+      return;
+    }
+    // Create MD5 hashes for verification
+    const successTwoFactorAllowed = CryptoJS.MD5(`${respData?.sessionId}:${SUCCESS_TEXT}`).toString();
+    const failedTwoFactorAllowed = CryptoJS.MD5(`${respData?.sessionId}:${SUCCESS_FAILED_TEXT}`).toString();
+    const failedTwoFactorDeviceVerified = CryptoJS.MD5(`${respData?.sessionId}:${VERIFIED_FAILED_TEXT}`).toString();
+    const successTwoFactorDeviceVerified = CryptoJS.MD5(`${respData?.sessionId}:${VERIFIED_SUCCESS_TEXT}`).toString();
+
+    const recaptchaToken = await executeRecaptcha("login");
+
+    // Access properties through respData.data
+    const twoFactorAllowed = respData?.data?.is_two_factor_allowed;
+    const twoFactorDeviceVerified = respData?.data?.is_two_factor_device_verified;
+    const isGaEnabled = respData?.data?.is_ga_enabled;
+
+    if (twoFactorAllowed !== successTwoFactorAllowed && twoFactorAllowed !== failedTwoFactorAllowed) {
+      dispatch(logout());
+      navigate("/accounts/signin");
+      return;
+    }
+
+    if (twoFactorDeviceVerified !== successTwoFactorDeviceVerified && twoFactorDeviceVerified !== failedTwoFactorDeviceVerified ) {
+      dispatch(logout());
+      navigate("/accounts/signin");
+      return;
+    }
+
+    if ( twoFactorAllowed === successTwoFactorAllowed && twoFactorDeviceVerified === failedTwoFactorDeviceVerified) {
+      // Request OTP for 2FA
+      await handleRequestOTP(recaptchaToken);
+      setShow2FA(true);
+      return;
+    } 
+    else if (isGaEnabled) {
+      // Handle Google Authenticator
+      toast.info("Google Authenticator verification required");
+      return;
+    } 
+    else {
+      // Direct navigation to dashboard
+      toast.success("Login successful!");
+      navigate("/");
+      return;
+    }
+  };
+
+  const handleRequestOTP = async (recaptcha: string) => {
+    try {
+      const payload = { recaptcha, version: "v3" };
+      await API.post("two-factor/totp/create/", payload);
+      toast.success("OTP sent to your registered mobile number");
+    } catch (err) {
+      toast.error("Failed to send OTP");
+    }
+  };
+
+  const handleVerifyOTP = async (code: string, isMobileOTP: boolean): Promise<void> => {
+    if (!executeRecaptcha) return;
+    
+    setIsLoading(true);
+    const recaptchaToken = await executeRecaptcha("login");
+
+    const url = isMobileOTP
+      ? "two-factor/totp/login/"
+      : "two-factor/static/login/";
+      
+    try {
+      const res = await API.post(url, { 
+        token: code, 
+        remember_me: false,
+        recaptcha: recaptchaToken,
+        version: "v3"
+      });
+
+      if (res.data.code === 200 && res.data?.data?.status === true) {
+        const isExpired = res.data?.is_password_expired;
+        localStorage.setItem("password_expired", isExpired ? "true" : "false");
+
+        const deviceData = res.data?.data;
+        if (deviceData?.key && deviceData?.value && deviceData?.age) {
+          const now = new Date();
+          now.setMinutes(now.getMinutes() + deviceData.age);
+          document.cookie = `${deviceData.key}=${deviceData.value}; expires=${now.toUTCString()}; path=/; SameSite=Strict`;
+        }
+
+        toast.success("Login successful!");
+        navigate("/");
+      } else {
+        toast.error(res.data?.data?.message || "Invalid Code");
+      }
+    } catch (err: any) {
+      toast.error(err?.response?.data?.data?.message || "Verification failed! Please try again.");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleLogin = async (data: FormFields) => {
+    if (!executeRecaptcha) {
+      setError("Unable to execute reCAPTCHA. Please reload the page.");
+      return;
+    }
+
+    if (localStorage.getItem("logininprogress") === "yes") {
+      return;
+    }
+
+    setIsLoading(true);
+    setError(null);
+    localStorage.setItem("logininprogress", "yes");
+
+    try {
+      const recaptchaToken = await executeRecaptcha("login");
+      const response = await login(data.email, data.password, recaptchaToken, "v3");
+
+      if (response.code === 200 && response.data) {
+        // Check if response has session data for 2FA check
+        if (response.data?.sessionId || response.data?.data?.is_two_factor_allowed) {
+          const respData = response?.data;
+          const token = respData?.data?.auth?.[0]?.auth_token;
+          const apiKey = respData?.data?.auth?.[0]?.apikey;
+          const userKey = respData?.data?.user;
+          
+          if (token && apiKey && userKey) {
+            const user: User = {
+              username: userKey.username || "",
+              first_name: userKey.first_name || "",
+              last_name: userKey.last_name || "",
+              phone: userKey.phone || "",
+              customer_country: userKey.customer_country || "",
+              crn: userKey.crn || "",
+              location: userKey.location || "",
+              projectId: respData?.data?.project_id || "",
+              email: userKey.current_user_email || "",
+            };
+            dispatch(loginAction({ token, apiKey, user }));
+            await checkFor2faOrDashboard(respData);
+            return;
+          }
+        }
+        
+        // Simple login success - direct navigation
+        if (response.data.token) {
+          localStorage.setItem("token", response.data.token);
+          toast.success("Login successful!");
+          navigate("/");
+        }
+      }
+    } catch (err: any) {
+      setError(
+        err?.response?.data?.error ||
+          err?.response?.data?.non_field_errors?.[0] ||
+          err?.response?.data ||
+          "Error while Sign In!"
+      );
+    } finally {
+      setIsLoading(false);
+      localStorage.removeItem("logininprogress");
+    }
+  };
+
+  const handleCancel2FA = () => {
+    dispatch(logout());
+    setShow2FA(false);
+    setError(null);
+  };
+
+  return (
+    <div className={cn("w-full min-w-md mx-auto", className)} {...props}>
+      {show2FA ? (
+        <TwoFactorAuth 
+          onSubmit={handleVerifyOTP}
+          onCancel={handleCancel2FA}
+          isLoading={isLoading}
+          error={null}
+          timer={0}
+          showCallOption={false}
+        />
+      ) : (
+        <LoginForm onSubmit={handleLogin} isLoading={isLoading} error={error} />
+      )}
+    </div>
+  );
 }
 
 // ReCaptcha Provider Wrapper

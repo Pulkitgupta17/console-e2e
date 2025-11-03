@@ -4,11 +4,12 @@ import { getCookie } from '@/services/commonMethods';
 // import { logoutUser } from "./store/authSlice";
 
 export const API = axios.create({
-  baseURL: import.meta.env.VITE_apiURL,
+  baseURL: import.meta.env.MODE === "development" ? "/api" : import.meta.env.VITE_apiURL,
   timeout: 30000,
   headers: {
     "Content-Type": "application/json",
   },
+  withCredentials: true,
 });
 
 export const PublicAPI = axios.create({
@@ -44,6 +45,7 @@ API.interceptors.request.use(
     if(apiKey){
       config.params = config.params || {};
       config.params.apikey = apiKey;
+      config.headers['x-api-key'] = apiKey;
     }
     return config;
   },

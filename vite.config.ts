@@ -11,4 +11,15 @@ export default defineConfig({
       "@": path.resolve(__dirname, "./src"),
     },
   },
+  server: {
+    proxy: {
+      // When you call /api/... in your frontend, Vite will forward it to this target
+      "/api": {
+        target: "https://api-loki.e2enetworks.net/myaccount/api/v1",
+        changeOrigin: true, // Makes the host header match the target
+        rewrite: (path) => path.replace(/^\/api/, ""), // Removes '/api' prefix before sending to backend
+        secure: true,
+      },
+    },
+  },
 })

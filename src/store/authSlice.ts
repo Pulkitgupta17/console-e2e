@@ -1,5 +1,5 @@
-import { createAsyncThunk, createSlice } from "@reduxjs/toolkit";
-import { getCookie, removeCookie } from '@/services/commonMethods';
+import { createAsyncThunk, createSlice, type PayloadAction } from "@reduxjs/toolkit";
+import { getCookie, removeCookie, setCookie } from '@/services/commonMethods';
 import { jwtDecode } from "jwt-decode";
 // import { getCustomerDetails } from '@/services/dashboard.service';
 import { BASE_URL } from "@/constants/global.constants";
@@ -58,6 +58,16 @@ const authSlice = createSlice({
   name: "auth",
   initialState,
   reducers: {
+    login: (state, action: PayloadAction<{ token: string; apiKey: string; user: User }>) => {
+      state.token = action.payload.token;
+      state.apiKey = action.payload.apiKey;
+      state.user = action.payload.user;
+      state.isAuthenticated = true;
+      
+      // Set cookies for axios interceptors
+      setCookie('token', action.payload.token);
+      setCookie('apikey', action.payload.apiKey);
+    },
     logout: (state) => {
       state.token = null;
       state.apiKey = null;
@@ -101,7 +111,7 @@ export function validateUser(): boolean {
     if (isAuthenticated()) {
       const token = getCookie('token');
       const decoded: any = jwtDecode(token);
-      return decoded?.is_partner_role;
+      return decoded;
 
     } else {
       throw new Error('Unable to find token or api key');
@@ -115,5 +125,5 @@ export function checkInternalUser(email: string): boolean {
   return email.includes('@e2enetworks.com');
 }
 
-export const { logout } = authSlice.actions;
+export const { login, logout } = authSlice.actions;
 export default authSlice.reducer;
