@@ -28,7 +28,6 @@ type AuthState = {
 
 const storedToken = getCookie("token");
 const storedApiKey = getCookie("apikey");
-
 const initialState: AuthState = {
   token: storedToken,
   apiKey: storedApiKey,

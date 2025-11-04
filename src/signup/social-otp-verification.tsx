@@ -1,57 +1,50 @@
 import { Button } from "@/components/ui/button"
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { cn } from "@/lib/utils"
 import { useState, useEffect } from "react"
 import { useNavigate } from "react-router-dom"
 import { toast } from "sonner"
-import ChangeContactInformation from "./change-contact-information"
 import { 
   verifyOtp, 
-  signupFirst, 
+  signupGoogle,
+  signupGithub,
   splitFullName,
   generateMobileOtpHash,
   generateEmailOtpHash,
   customerDetailsVerification,
-  sendOtpEmail
 } from "@/services/signupService"
 import { useGoogleReCaptcha } from "react-google-recaptcha-v3"
 import { useAppDispatch } from "@/store/store"
 import { login as loginAction, type User } from "@/store/authSlice"
 import { setCookie } from "@/services/commonMethods"
-import type { SignupData, OtpStatus } from "@/interfaces/signupInterface"
+import type { SocialUser, OtpStatus } from "@/interfaces/signupInterface"
 
-interface OtpVerificationProps extends React.ComponentProps<"div"> {
+interface SocialOtpVerificationProps extends React.ComponentProps<"div"> {
   onBack?: () => void;
-  signupData: SignupData;
+  socialUser: SocialUser & { phone: string };
   otpStatus: OtpStatus;
+  nameEdited: boolean;
+  editedName: string;
 }
 
-function OtpVerification({
+function SocialOtpVerification({
   className,
   onBack,
-  signupData,
+  socialUser,
   otpStatus,
+  nameEdited,
+  editedName,
   ...props
-}: OtpVerificationProps) {
+}: SocialOtpVerificationProps) {
   const { executeRecaptcha } = useGoogleReCaptcha();
   const navigate = useNavigate();
   const dispatch = useAppDispatch();
   
   const [mobileOtpValues, setMobileOtpValues] = useState(['', '', '', '', '', '']);
-  const [emailOtpValues, setEmailOtpValues] = useState(['', '', '', '', '', '']);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [mobileTimer, setMobileTimer] = useState(60);
-  const [emailTimer, setEmailTimer] = useState(60);
   const [canResendMobile, setCanResendMobile] = useState(false);
-  const [canResendEmail, setCanResendEmail] = useState(false);
-  const [showChangeContact, setShowChangeContact] = useState(false);
 
   // Mobile OTP Timer countdown
   useEffect(() => {
@@ -65,33 +58,14 @@ function OtpVerification({
     }
   }, [mobileTimer]);
 
-  // Email OTP Timer countdown
-  useEffect(() => {
-    if (emailTimer > 0) {
-      const interval = setInterval(() => {
-        setEmailTimer((prev) => prev - 1);
-      }, 1000);
-      return () => clearInterval(interval);
-    } else {
-      setCanResendEmail(true);
-    }
-  }, [emailTimer]);
-
-  const handleOtpChange = (
-    index: number, 
-    value: string, 
-    values: string[],
-    setter: React.Dispatch<React.SetStateAction<string[]>>,
-    prefix: string
-  ) => {
-    if (value.length > 1) return; // Only allow single digit
-    const newValues = [...values];
+  const handleOtpChange = (index: number, value: string) => {
+    if (value.length > 1) return;
+    const newValues = [...mobileOtpValues];
     newValues[index] = value;
-    setter(newValues);
+    setMobileOtpValues(newValues);
     
-    // Auto-focus next input
     if (value && index < 5) {
-      const nextInput = document.getElementById(`${prefix}-${index + 1}`);
+      const nextInput = document.getElementById(`mobile-otp-${index + 1}`);
       nextInput?.focus();
     }
   };
@@ -112,8 +86,8 @@ function OtpVerification({
       const recaptchaToken = await executeRecaptcha("resend_otp");
 
       const payload: any = {
-        email: signupData.email,
-        mobile: signupData.phone,
+        email: socialUser.email,
+        mobile: socialUser.phone,
         recaptcha: recaptchaToken,
         version: "v3",
       };
@@ -133,51 +107,25 @@ function OtpVerification({
     }
   };
 
-  const handleResendEmail = async () => {
-    try {
-      // Resend email OTP
-      await sendOtpEmail({
-        email: signupData.email,
-        mobile: signupData.phone,
-        full_name: signupData.name,
-        type: "signup",
-        otp_msg: otpStatus.message,
-        otp_status: otpStatus,
-      });
-
-      toast.success("Email OTP resent successfully");
-      setEmailTimer(60);
-      setCanResendEmail(false);
-    } catch (error: any) {
-      toast.error(error?.response?.data?.message || "Failed to resend email OTP");
-    }
-  };
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
     const mobileOtp = mobileOtpValues.join('');
-    const emailOtp = emailOtpValues.join('');
 
     if (mobileOtp.length !== 6) {
       toast.error("Please enter mobile OTP");
       return;
     }
 
-    if (emailOtp.length !== 6) {
-      toast.error("Please enter email OTP");
-      return;
-    }
-
     setIsSubmitting(true);
 
     try {
-      // Step 3: Verify OTP
+      // Step 1: Verify OTP (mobile only for social signup)
       const verifyResponse = await verifyOtp({
-        email: signupData.email,
-        mobile: signupData.phone,
+        email: socialUser.email,
+        mobile: socialUser.phone,
         otp: mobileOtp,
-        otpemail: emailOtp,
+        otpemail: "", // Empty for social signup
       });
 
       if (verifyResponse.code !== 200) {
@@ -187,7 +135,6 @@ function OtpVerification({
 
       const verifyData = verifyResponse.data;
 
-      // Check for errors
       if (verifyData.tries_completed) {
         toast.error("Maximum OTP attempts exceeded. Please try again later.");
         return;
@@ -199,42 +146,48 @@ function OtpVerification({
       }
 
       if (!verifyData.otp_verified) {
-        toast.error(verifyData?.message || "Invalid OTP. Please try again.");
+        toast.error("Invalid OTP. Please try again.");
         return;
       }
 
       // Generate expected hashes
-      const expectedMobileHash = generateMobileOtpHash(signupData.phone, signupData.email);
-      const expectedEmailHash = generateEmailOtpHash(signupData.email);
+      const expectedMobileHash = generateMobileOtpHash(socialUser.phone, socialUser.email);
+      const expectedEmailHash = generateEmailOtpHash(socialUser.email);
 
-      // Get actual hashes from response
+      // Get actual hash from response
       const actualMobileHash = verifyData.mobile_otp_verified_code;
-      const actualEmailHash = verifyData.email_verify?.email_otp_verified_code || "";
 
-      // Validate hashes (for security)
+      // Validate hash
       if (actualMobileHash !== expectedMobileHash) {
         console.warn("Mobile OTP hash mismatch");
       }
 
-      if (actualEmailHash !== expectedEmailHash) {
-        console.warn("Email OTP hash mismatch");
+      // Prepare name details
+      const nameDetails: any = {
+        name_edit_allowed: nameEdited,
+      };
+
+      if (nameEdited) {
+        const { first_name, last_name } = splitFullName(editedName);
+        nameDetails.first_name = first_name;
+        nameDetails.last_name = last_name;
       }
 
-      // Split name
-      const { first_name, last_name } = splitFullName(signupData.name);
-
-      // Step 4: Complete signup
-      const signupResponse = await signupFirst({
-        first_name,
-        last_name,
-        password1: signupData.password,
-        password2: signupData.password,
-        email: signupData.email,
-        phone: signupData.phone,
+      // Step 2: Complete social signup (Google or GitHub)
+      const signupPayload = {
+        access_token: socialUser.access_token,
+        code: socialUser.id,
+        phone: socialUser.phone,
+        email: socialUser.email,
         mobile_otp_verified_code: actualMobileHash,
-        email_otp_verified_code: actualEmailHash,
+        email_otp_verified_code: expectedEmailHash,
         emailis_verify: true,
-      });
+        name_details: nameDetails,
+      };
+
+      const signupResponse = socialUser.provider === "Google" 
+        ? await signupGoogle(signupPayload)
+        : await signupGithub(signupPayload);
 
       if (signupResponse.code !== 200) {
         toast.error(signupResponse.message || "Signup failed");
@@ -243,21 +196,25 @@ function OtpVerification({
 
       // Extract user data from response
       const userData = signupResponse.data;
-      const token = userData?.data?.auth?.[0]?.auth_token;
-      const apiKey = userData?.data?.auth?.[0]?.apikey;
+      const token = userData?.data.auth?.[0]?.auth_token;
+      const apiKey = userData?.data.auth?.[0]?.apikey;
 
       if (token && apiKey) {
+        const { first_name, last_name } = nameEdited 
+          ? splitFullName(editedName)
+          : splitFullName(socialUser.name);
+
         // Create user object
         const user: User = {
           username: userData?.data?.user?.username || first_name,
           first_name: first_name,
           last_name: last_name,
-          phone: signupData.phone,
+          phone: socialUser.phone,
           customer_country: userData?.data?.user?.customer_country || "",
-          crn: userData?.data?.user?.crn || "",
+          crn: userData.user?.crn || "",
           location: userData.user?.location || "",
           projectId: userData?.data?.project_id || "",
-          email: signupData.email,
+          email: socialUser.email,
         };
 
         // Set cookies
@@ -271,7 +228,10 @@ function OtpVerification({
         localStorage.setItem('currentUser', JSON.stringify(user));
         localStorage.setItem('token', token);
         localStorage.setItem('apiKey', apiKey);
-        localStorage.setItem('email', signupData.email);
+        localStorage.setItem('email', socialUser.email);
+
+        // Clear social user data
+        localStorage.removeItem('socialuser');
 
         // Set CSRF token if available
         if (userData.csrf_token) {
@@ -291,7 +251,7 @@ function OtpVerification({
       }
 
     } catch (error: any) {
-      console.error("Signup error:", error);
+      console.error("Social signup error:", error);
       const errorMsg = error?.response?.data?.message || 
                       error?.response?.data?.error || 
                       error?.response?.data?.data?.message ||
@@ -301,15 +261,6 @@ function OtpVerification({
       setIsSubmitting(false);
     }
   };
-
-  const handleBackFromContactChange = () => {
-    setShowChangeContact(false);
-  };
-
-  // Show change contact form if state is true
-  if (showChangeContact) {
-    return <ChangeContactInformation onBack={handleBackFromContactChange} />;
-  }
 
   return (
     <div className={cn("w-full max-w-md mx-auto", className)} {...props}>
@@ -326,11 +277,11 @@ function OtpVerification({
               </svg>
             </button>
             <CardTitle className="text-2xl font-bold text-white">
-              Start your free trial
+              Verify Mobile Number
             </CardTitle>
           </div>
           <CardDescription className="text-gray-400">
-            No credit card. Spin up in minutes.
+            Complete signup with {socialUser.provider}
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -338,8 +289,8 @@ function OtpVerification({
             {/* SMS Verification */}
             <div className="space-y-4">
               <div className="space-y-2">
-                <h3 className="text-lg font-semibold text-white">Verification</h3>
-                <p className="text-sm text-gray-400">SMS code sent on {signupData.phone}</p>
+                <h3 className="text-lg font-semibold text-white">Mobile Verification</h3>
+                <p className="text-sm text-gray-400">SMS code sent on {socialUser.phone}</p>
               </div>
               
               <div className="flex gap-3 items-center">
@@ -352,7 +303,7 @@ function OtpVerification({
                       inputMode="numeric"
                       maxLength={1}
                       value={value}
-                      onChange={(e) => handleOtpChange(index, e.target.value, mobileOtpValues, setMobileOtpValues, 'mobile-otp')}
+                      onChange={(e) => handleOtpChange(index, e.target.value)}
                       onKeyDown={(e) => addInputValidation(e)}
                       variant="primary"
                       size="otp"
@@ -382,75 +333,9 @@ function OtpVerification({
                 <button 
                   type="button" 
                   className="text-cyan-400 hover:text-cyan-300"
-                  onClick={() => setShowChangeContact(true)}
+                  onClick={onBack}
                 >
                   Change phone number
-                </button>
-              </div>
-
-              {/* Call me option - Commented out for now */}
-              {/* {canResendMobile && (
-                <div className="flex justify-center text-sm mt-2">
-                  <button 
-                    type="button" 
-                    onClick={() => handleResendMobile('voice')}
-                    className="text-cyan-400 hover:text-cyan-300"
-                  >
-                    Receive OTP via call
-                  </button>
-                </div>
-              )} */}
-            </div>
-
-            {/* Email Verification */}
-            <div className="space-y-4">
-              <div className="space-y-2">
-                <p className="text-sm text-gray-400">Email code sent on {signupData.email}</p>
-              </div>
-              
-              <div className="flex gap-3 items-center">
-                <div className="flex gap-3 flex-1 items-center">
-                  {emailOtpValues.map((value, index) => (
-                    <Input
-                      key={index}
-                      id={`email-otp-${index}`}
-                      type="text"
-                      inputMode="numeric"
-                      maxLength={1}
-                      value={value}
-                      onChange={(e) => handleOtpChange(index, e.target.value, emailOtpValues, setEmailOtpValues, 'email-otp')}
-                      onKeyDown={(e) => addInputValidation(e)}
-                      variant="primary"
-                      size="otp"
-                      className="text-center text-lg font-semibold"
-                    />
-                  ))}
-                </div>
-                <div className="text-sm shrink-0">
-                </div>
-              </div>
-              
-              <div className="flex justify-between text-sm">
-                {canResendEmail ? (
-                  <button 
-                    type="button" 
-                    onClick={handleResendEmail}
-                    className="text-cyan-400 hover:text-cyan-300 flex items-center gap-1"
-                  >
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                    </svg>
-                    Resend Code
-                  </button>
-                ) : (
-                  <span className="text-gray-400 whitespace-nowrap">Resend in {emailTimer}s</span>
-                )}
-                <button 
-                  type="button" 
-                  className="text-cyan-400 hover:text-cyan-300"
-                  onClick={() => setShowChangeContact(true)}
-                >
-                  Change email
                 </button>
               </div>
             </div>
@@ -508,4 +393,5 @@ function OtpVerification({
   );
 }
 
-export default OtpVerification;
+export default SocialOtpVerification;
+
