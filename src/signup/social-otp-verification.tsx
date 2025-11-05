@@ -70,8 +70,24 @@ function SocialOtpVerification({
     }
   };
 
-  const addInputValidation = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (!/[0-9]/.test(e.key) && e.key !== "Backspace" && e.key !== "Tab" && e.key !== "ArrowLeft" && e.key !== "ArrowRight") {
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>, index: number) => {
+
+    if (e.key === "Backspace") {
+      // If current input is empty, move to previous input
+      if (!mobileOtpValues[index] && index > 0) {
+        const prevInput = document.getElementById(`mobile-otp-${index - 1}`);
+        prevInput?.focus();
+      } else {
+        // Clear current input
+        const newValues = [...mobileOtpValues];
+        newValues[index] = '';
+        setMobileOtpValues(newValues);
+      }
+      return;
+    }
+
+    // Validate only numbers
+    if (!/[0-9]/.test(e.key) && e.key !== "Tab" && e.key !== "ArrowLeft" && e.key !== "ArrowRight") {
       e.preventDefault();
     }
   };
@@ -226,9 +242,9 @@ function SocialOtpVerification({
 
         // Store user data in localStorage
         localStorage.setItem('currentUser', JSON.stringify(user));
-        localStorage.setItem('token', token);
-        localStorage.setItem('apiKey', apiKey);
-        localStorage.setItem('email', socialUser.email);
+        // localStorage.setItem('token', token);
+        // localStorage.setItem('apiKey', apiKey);
+        // localStorage.setItem('email', socialUser.email);
 
         // Clear social user data
         localStorage.removeItem('socialuser');
@@ -304,7 +320,7 @@ function SocialOtpVerification({
                       maxLength={1}
                       value={value}
                       onChange={(e) => handleOtpChange(index, e.target.value)}
-                      onKeyDown={(e) => addInputValidation(e)}
+                      onKeyDown={(e) => handleKeyDown(e, index)}
                       variant="primary"
                       size="otp"
                       className="text-center text-lg font-semibold"

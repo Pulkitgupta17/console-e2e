@@ -21,6 +21,7 @@ import { GoogleReCaptchaProvider, useGoogleReCaptcha } from "react-google-recapt
 import { customerDetailsVerification, sendOtpEmail, googleCallback } from "@/services/signupService";
 import { toast } from "sonner";
 import type { SignupData, OtpStatus, SocialUser } from "@/interfaces/signupInterface";
+import { getCookie } from "@/services/commonMethods";
 
 // Declare Google Identity Services types
 declare global {
@@ -62,6 +63,17 @@ function SignupForm({
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
   const [showEmailExistsError, setShowEmailExistsError] = useState(false);
 
+  // Redirect to dashboard if user is already logged in (check cookies)
+  useEffect(() => {
+    const token = getCookie('token');
+    const apikey = getCookie('apikey');
+
+    if (token && apikey) {
+      navigate('/');
+      return;
+    }
+  }, [navigate]);
+
   // Cleanup effect: Remove login progress flag if user exists
   useEffect(() => {
     const authLocalStorage = JSON.parse(localStorage.getItem("currentUser") || "null");
@@ -88,13 +100,6 @@ function SignupForm({
       if (code && scope && scope.includes('email')) {
         try {
           setIsGoogleLoading(true);
-          
-          console.log("🔍 Google OAuth Callback Debug:");
-          console.log("  Code:", code.substring(0, 20) + "...");
-          console.log("  Scope:", scope);
-          console.log("  Origin:", window.location.origin);
-          console.log("  Full Redirect URI:", `${window.location.origin}/accounts/signup`);
-          
           // Send full redirect URI to backend (must match what was used in OAuth initiation)
           const fullRedirectUri = `${window.location.origin}/accounts/signup`;
           const response = await googleCallback(code, fullRedirectUri);

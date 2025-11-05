@@ -1,5 +1,6 @@
 import { Badge } from "@/components/ui/badge"
 import { Outlet, useLocation } from "react-router-dom"
+import e2eLogo from "@/assets/e2e_logo.svg"
 
 function SignupBackground() {
   const location = useLocation()
@@ -55,11 +56,12 @@ function SignupBackground() {
           {/* Header */}
           <header className="relative z-10 p-6">
             <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="w-8 h-8 bg-gradient-to-r from-cyan-500 to-emerald-500 rounded-lg flex items-center justify-center">
-                  {/* <Shield className="w-5 h-5 text-gray-900" /> */}
-                </div>
-                <span className="text-white font-bold tracking-tight">E2E Networks</span>
+              <div className="flex items-center">
+                <img 
+                  src={e2eLogo} 
+                  alt="E2E Networks" 
+                  className="h-6 w-auto"
+                />
               </div>
             </div>
           </header>

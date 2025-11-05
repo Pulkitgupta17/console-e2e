@@ -96,8 +96,29 @@ function OtpVerification({
     }
   };
 
-  const addInputValidation = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (!/[0-9]/.test(e.key) && e.key !== "Backspace" && e.key !== "Tab" && e.key !== "ArrowLeft" && e.key !== "ArrowRight") {
+  const handleKeyDown = (
+    e: React.KeyboardEvent<HTMLInputElement>,
+    index: number,
+    values: string[],
+    setter: React.Dispatch<React.SetStateAction<string[]>>,
+    prefix: string
+  ) => {
+    if (e.key === "Backspace") {
+      // If current input is empty, move to previous input
+      if (!values[index] && index > 0) {
+        const prevInput = document.getElementById(`${prefix}-${index - 1}`);
+        prevInput?.focus();
+      } else {
+        // Clear current input
+        const newValues = [...values];
+        newValues[index] = '';
+        setter(newValues);
+      }
+      return;
+    }
+
+    // Validate only numbers
+    if (!/[0-9]/.test(e.key) && e.key !== "Tab" && e.key !== "ArrowLeft" && e.key !== "ArrowRight") {
       e.preventDefault();
     }
   };
@@ -269,9 +290,9 @@ function OtpVerification({
 
         // Store user data in localStorage
         localStorage.setItem('currentUser', JSON.stringify(user));
-        localStorage.setItem('token', token);
-        localStorage.setItem('apiKey', apiKey);
-        localStorage.setItem('email', signupData.email);
+        // localStorage.setItem('token', token);
+        // localStorage.setItem('apiKey', apiKey);
+        // localStorage.setItem('email', signupData.email);
 
         // Set CSRF token if available
         if (userData.csrf_token) {
@@ -353,7 +374,7 @@ function OtpVerification({
                       maxLength={1}
                       value={value}
                       onChange={(e) => handleOtpChange(index, e.target.value, mobileOtpValues, setMobileOtpValues, 'mobile-otp')}
-                      onKeyDown={(e) => addInputValidation(e)}
+                      onKeyDown={(e) => handleKeyDown(e, index, mobileOtpValues, setMobileOtpValues, 'mobile-otp')}
                       variant="primary"
                       size="otp"
                       className="text-center text-lg font-semibold"
@@ -419,7 +440,7 @@ function OtpVerification({
                       maxLength={1}
                       value={value}
                       onChange={(e) => handleOtpChange(index, e.target.value, emailOtpValues, setEmailOtpValues, 'email-otp')}
-                      onKeyDown={(e) => addInputValidation(e)}
+                      onKeyDown={(e) => handleKeyDown(e, index, emailOtpValues, setEmailOtpValues, 'email-otp')}
                       variant="primary"
                       size="otp"
                       className="text-center text-lg font-semibold"

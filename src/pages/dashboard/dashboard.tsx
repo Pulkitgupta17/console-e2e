@@ -1,7 +1,11 @@
-import { useAppSelector } from "@/store/store";
+import { useAppSelector, useAppDispatch } from "@/store/store";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { logout } from "@/store/authSlice";
+import { LogOut } from "lucide-react";
 
 const Dashboard = () => {
+  const dispatch = useAppDispatch();
   const { user } = useAppSelector((state) => state.auth);
 
   // Get the display name - prefer first name, fallback to username, then email
@@ -10,9 +14,24 @@ const Dashboard = () => {
     ? `${user.first_name} ${user.last_name}` 
     : displayName;
 
+  const handleLogout = () => {
+    dispatch(logout());
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 p-8">
       <div className="max-w-7xl mx-auto">
+        <div className="flex justify-end mb-6">
+          <Button
+            variant="social"
+            onClick={handleLogout}
+            className="flex items-center gap-2"
+          >
+            <LogOut className="h-4 w-4" />
+            Logout
+          </Button>
+        </div>
+        <div>
         <Card className="border-gray-700 bg-gray-800/50 backdrop-blur-sm">
           <CardHeader>
             <CardTitle className="text-3xl font-bold text-white">
@@ -77,6 +96,7 @@ const Dashboard = () => {
             </div>
           </CardContent>
         </Card>
+        </div>
       </div>
     </div>
   );

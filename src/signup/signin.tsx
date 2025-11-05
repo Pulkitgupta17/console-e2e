@@ -8,7 +8,7 @@ import {
 } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { cn } from "@/lib/utils"
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useNavigate } from "react-router-dom"
 import { Eye, EyeOff } from "lucide-react"
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -22,6 +22,8 @@ import { useAppDispatch } from "@/store/store";
 import CryptoJS from "crypto-js";
 import API from "@/axios";
 import TwoFactorAuth from "./twoFactorAuth";
+import { getCookie } from "@/services/commonMethods";
+import { setCookie } from "@/services/commonMethods"
 
 const schema = z.object({
   email: z.string().email({ message: "Invalid email address" }),
@@ -201,6 +203,17 @@ function Signin({
   const [error, setError] = useState<string | null>(null);
   const [show2FA, setShow2FA] = useState(false);
 
+  // Redirect to dashboard if user is already logged in (check cookies)
+  useEffect(() => {
+    const token = getCookie('token');
+    const apikey = getCookie('apikey');
+
+    if (token && apikey) {
+      navigate('/');
+      return;
+    }
+  }, [navigate]);
+
   const checkFor2faOrDashboard = async (respData: any) => {
     if (!executeRecaptcha) {
       return;
@@ -346,7 +359,9 @@ function Signin({
         
         // Simple login success - direct navigation
         if (response.data.token) {
-          localStorage.setItem("token", response.data.token);
+          setCookie('token', response.data.token);
+          setCookie('apikey', response.data.apikey);
+          // localStorage.setItem("token", response.data.token);
           toast.success("Login successful!");
           navigate("/");
         }
