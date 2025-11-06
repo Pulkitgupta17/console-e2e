@@ -2,7 +2,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { cn } from "@/lib/utils"
-import { useState, useEffect } from "react"
+import { useState } from "react"
 import { useNavigate } from "react-router-dom"
 import PhoneInput from 'react-phone-input-2'
 import 'react-phone-input-2/lib/style.css'
@@ -10,7 +10,7 @@ import { zodResolver } from "@hookform/resolvers/zod"
 import { useForm, type SubmitHandler } from "react-hook-form"
 import { z } from "zod"
 import { toast } from "sonner"
-import { GoogleReCaptchaProvider, useGoogleReCaptcha } from "react-google-recaptcha-v3"
+import { useGoogleReCaptcha } from "react-google-recaptcha-v3"
 import { customerDetailsVerification } from "@/services/signupService"
 import type { SocialUser, OtpStatus } from "@/interfaces/signupInterface"
 import SocialOtpVerification from "./social-otp-verification"
@@ -28,11 +28,13 @@ type FormFields = z.infer<typeof schema>;
 
 interface CompleteSocialSignupFormProps extends React.ComponentProps<"div"> {
   socialUser: SocialUser;
+  onBack?: () => void;
 }
 
 function CompleteSocialSignupForm({
   className,
   socialUser,
+  onBack,
   ...props
 }: CompleteSocialSignupFormProps) {
   const { executeRecaptcha } = useGoogleReCaptcha();
@@ -160,9 +162,22 @@ function CompleteSocialSignupForm({
     <div className={cn("w-full max-w-md mx-auto", className)} {...props}>
       <Card className="border-gray-800/50 backdrop-blur-sm form-fade-in" style={{ backgroundColor: 'var(--signup-card-bg)' }}>
         <CardHeader className="text-left space-y-2">
-          <CardTitle className="text-2xl font-bold text-white">
-            Complete Your Signup
-          </CardTitle>
+          <div className="flex items-center gap-3 mb-2">
+            {onBack && (
+              <button
+                type="button"
+                onClick={onBack}
+                className="text-gray-400 hover:text-white transition-colors"
+              >
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                </svg>
+              </button>
+            )}
+            <CardTitle className="text-2xl font-bold text-white">
+              Complete Your Signup
+            </CardTitle>
+          </div>
           <CardDescription className="text-gray-400">
             Sign up with {socialUser.provider}
           </CardDescription>
@@ -262,55 +277,5 @@ function CompleteSocialSignupForm({
   );
 }
 
-// ReCaptcha Provider Wrapper
-const CompleteSocialSignup = (props: React.ComponentProps<"div">) => {
-  const navigate = useNavigate();
-  const [socialUser, setSocialUser] = useState<SocialUser | null>(null);
-  const siteKey = "6LeJ7_4jAAAAAKqjyjQ2jEC4yJenDE6R8KyTu9Mt";
-
-  useEffect(() => {
-    // Get social user from localStorage
-    const storedSocialUser = localStorage.getItem('socialuser');
-    if (!storedSocialUser) {
-      toast.error("No social login data found. Please try again.");
-      navigate('/accounts/signup');
-      return;
-    }
-
-    try {
-      const user = JSON.parse(storedSocialUser);
-      setSocialUser(user);
-    } catch (error) {
-      toast.error("Invalid social login data. Please try again.");
-      navigate('/accounts/signup');
-    }
-  }, [navigate]);
-
-  if (!siteKey) {
-    console.error("reCAPTCHA site key is not set");
-    return (
-      <div className="text-red-400 text-center p-4">
-        reCAPTCHA configuration error. Please contact support.
-      </div>
-    );
-  }
-
-  if (!socialUser) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 flex items-center justify-center">
-        <div className="text-gray-400 text-center p-4">
-          Loading...
-        </div>
-      </div>
-    );
-  }
-
-  return (
-    <GoogleReCaptchaProvider reCaptchaKey={siteKey}>
-      <CompleteSocialSignupForm socialUser={socialUser} {...props} />
-    </GoogleReCaptchaProvider>
-  );
-};
-
-export default CompleteSocialSignup;
+export default CompleteSocialSignupForm;
 

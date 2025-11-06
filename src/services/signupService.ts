@@ -77,17 +77,10 @@ export const splitFullName = (fullName: string): { first_name: string; last_name
 
 // Google OAuth: Handle callback
 export const googleCallback = async (code: string, redirectUri: string = 'signup') => {
-  console.log("📤 Sending to backend:");
-  console.log("  Endpoint:", `accounts/auth/google-callback/`);
-  console.log("  Code:", code.substring(0, 30) + "...");
-  console.log("  Redirect URI:", redirectUri);
-  
   const response = await PublicAPI.post(
     `accounts/auth/google-callback/?code=${encodeURIComponent(code)}&redirect_uri=${encodeURIComponent(redirectUri)}`,
     {}
   );
-  
-  console.log("📥 Backend response:", response.data);
   return response.data;
 };
 
@@ -115,6 +108,40 @@ export const signupGithub = async (payload: GoogleSignupPayload) => {
     "accounts/auth/signup-github/",
     payload
   );
+  return response.data;
+};
+
+// Social Login APIs
+
+// Verify if email exists for social login
+export const verifySocialEmail = async (email: string) => {
+  const response = await PublicAPI.get(
+    `accounts/social-email-verify/?email=${encodeURIComponent(email)}`
+  );
+  return response.data;
+};
+
+// Google OAuth: Complete login
+export const loginGoogle = async (access_token: string, code: string) => {
+  const response = await PublicAPI.post(
+    "accounts/auth/google/",
+    { access_token, code }
+  );
+  return response.data;
+};
+
+// GitHub OAuth: Complete login
+export const loginGithub = async (access_token: string, code: string) => {
+  const response = await PublicAPI.post(
+    "accounts/auth/github/",
+    { access_token, code }
+  );
+  return response.data;
+};
+
+// Get customer validation status (called after login)
+export const getCustomerValidationStatus = async () => {
+  const response = await API.get("is-customer-validated/");
   return response.data;
 };
 

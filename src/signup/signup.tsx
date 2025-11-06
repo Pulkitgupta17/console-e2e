@@ -8,7 +8,7 @@ import {
 } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { cn } from "@/lib/utils"
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import PhoneInput from 'react-phone-input-2'
 import 'react-phone-input-2/lib/style.css'
 import OtpVerification from './otp-verification'
@@ -22,6 +22,7 @@ import { customerDetailsVerification, sendOtpEmail, googleCallback } from "@/ser
 import { toast } from "sonner";
 import type { SignupData, OtpStatus, SocialUser } from "@/interfaces/signupInterface";
 import { getCookie } from "@/services/commonMethods";
+import CompleteSocialSignupForm from "./complete-social-signup";
 
 // Declare Google Identity Services types
 declare global {
@@ -62,6 +63,11 @@ function SignupForm({
   const [otpStatus, setOtpStatus] = useState<OtpStatus | null>(null);
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
   const [showEmailExistsError, setShowEmailExistsError] = useState(false);
+  const [socialUser, setSocialUser] = useState<SocialUser | null>(null);
+  const [showSocialSignup, setShowSocialSignup] = useState(false);
+  
+  // Use ref to prevent duplicate OAuth processing
+  const hasProcessedOAuth = useRef(false);
 
   // Redirect to dashboard if user is already logged in (check cookies)
   useEffect(() => {
@@ -85,16 +91,26 @@ function SignupForm({
 
   // Handle OAuth callbacks (Google and GitHub)
   useEffect(() => {
-    let hasProcessed = false; // Prevent duplicate processing
-
     const handleOAuthCallback = async () => {
-      if (hasProcessed) return;
-      hasProcessed = true;
+      // Prevent duplicate processing using ref
+      if (hasProcessedOAuth.current) {
+        console.log("⚠️ OAuth callback already processed, skipping");
+        return;
+      }
 
       const urlParams = new URLSearchParams(window.location.search);
       const code = urlParams.get('code');
       const scope = urlParams.get('scope');
       const state = urlParams.get('state');
+
+      // Only process if we have OAuth params
+      if (!code || (!scope && !state)) {
+        return;
+      }
+
+      // Mark as processed immediately
+      hasProcessedOAuth.current = true;
+      console.log("🔒 OAuth callback processing started (locked)");
 
       // Handle Google OAuth callback
       if (code && scope && scope.includes('email')) {
@@ -113,15 +129,13 @@ function SignupForm({
               provider: "Google",
             };
 
-          // Store in localStorage
-          localStorage.setItem('socialuser', JSON.stringify(user));
+          // Store social user in state (not localStorage to keep on same page)
+          setSocialUser(user);
+          setShowSocialSignup(true);
           localStorage.removeItem('logininprogress');
 
           // Clean up URL parameters to prevent duplicate processing
           window.history.replaceState({}, document.title, '/accounts/signup');
-
-          // Navigate to complete social signup
-          navigate('/accounts/complete_social_signup');
           } else {
             toast.error("Failed to authenticate with Google");
             localStorage.removeItem('logininprogress');
@@ -162,16 +176,14 @@ function SignupForm({
               provider: "GitHub",
             };
 
-          // Store in localStorage
-          localStorage.setItem('socialuser', JSON.stringify(user));
+          // Store social user in state (not localStorage to keep on same page)
+          setSocialUser(user);
+          setShowSocialSignup(true);
           localStorage.removeItem('logininprogress');
           localStorage.removeItem('github_oauth_state');
 
           // Clean up URL parameters to prevent duplicate processing
           window.history.replaceState({}, document.title, '/accounts/signup');
-
-          // Navigate to complete social signup
-          navigate('/accounts/complete_social_signup');
           } else {
             toast.error("Failed to authenticate with GitHub");
             localStorage.removeItem('logininprogress');
@@ -341,6 +353,11 @@ function SignupForm({
     setShowOtpVerification(false);
   };
 
+  const handleBackFromSocialSignup = () => {
+    setShowSocialSignup(false);
+    setSocialUser(null);
+  };
+
   const handleGoogleSignup = () => {
     try {
       // Check if user already exists
@@ -431,6 +448,17 @@ function SignupForm({
     window.location.href = githubAuthUrl.toString();
   };
 
+  // Show social signup completion if user came from OAuth
+  if (showSocialSignup && socialUser) {
+    return (
+      <CompleteSocialSignupForm
+        socialUser={socialUser}
+        onBack={handleBackFromSocialSignup}
+      />
+    );
+  }
+
+  // Show OTP verification for standard signup
   if (showOtpVerification && signupData && otpStatus) {
     return (
       <OtpVerification
@@ -623,16 +651,16 @@ function SignupForm({
               </div>
               
               {!showEmailExistsError && (
-                <p className="text-center text-gray-400 text-sm mt-8 mb-2">
-                  Already have an account?{" "}
-                  <button
-                    type="button"
-                    onClick={() => navigate('/accounts/signin')}
-                    className="text-cyan-400 hover:text-cyan-300"
-                  >
-                    Sign in
-                  </button>
-                </p>
+              <p className="text-center text-gray-400 text-sm mt-8 mb-2">
+                Already have an account?{" "}
+                <button
+                  type="button"
+                  onClick={() => navigate('/accounts/signin')}
+                  className="text-cyan-400 hover:text-cyan-300"
+                >
+                  Sign in
+                </button>
+              </p>
               )}
             </div>
           </form>
