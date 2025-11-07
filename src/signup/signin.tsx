@@ -25,6 +25,8 @@ import TwoFactorAuth from "./twoFactorAuth";
 import { getCookie } from "@/services/commonMethods";
 import { googleCallback, verifySocialEmail, loginGoogle, loginGithub, githubCallback, getCustomerValidationStatus } from "@/services/signupService";
 import type { SocialUser } from "@/interfaces/signupInterface";
+import { Spinner } from '@/components/ui/shadcn-io/spinner';
+
 declare global {
   interface Window {
     google: any;
@@ -216,6 +218,7 @@ function Signin({
   const [error, setError] = useState<string | null>(null);
   const [show2FA, setShow2FA] = useState(false);
   const [isSocialLoading, setIsSocialLoading] = useState(false);
+  const [showSpinnerOverlay, setShowSpinnerOverlay] = useState(false);
   const hasProcessedOAuth = useRef(false);
   const hasRequestedOTP = useRef(false);
 
@@ -252,6 +255,7 @@ function Signin({
 
       try {
         setIsSocialLoading(true);
+        setShowSpinnerOverlay(true);
 
         // Handle Google OAuth callback
         if (code && scope && scope.includes('email')) {
@@ -416,16 +420,17 @@ function Signin({
             toast.error("Failed to retrieve authentication data");
           }
         }
-      } catch (error: any) {
-        toast.error(error?.response?.data?.message || "OAuth login failed");
-      } finally {
-        setIsSocialLoading(false);
-        localStorage.removeItem('logininprogress');
-      }
-    };
+        } catch (error: any) {
+          toast.error(error?.response?.data?.message || "OAuth login failed");
+        } finally {
+          setIsSocialLoading(false);
+          setShowSpinnerOverlay(false);
+          localStorage.removeItem('logininprogress');
+        }
+      };
 
-    handleOAuthCallback();
-  }, [navigate, dispatch]);
+      handleOAuthCallback();
+    }, [navigate, dispatch]);
 
   // Auto-request OTP when 2FA screen is shown and reCAPTCHA becomes available
   useEffect(() => {
@@ -671,11 +676,13 @@ function Signin({
 
       // Set login in progress
       localStorage.setItem("logininprogress", "yes");
+      setShowSpinnerOverlay(true);
 
       // Check if Google API is loaded
       if (!window.google) {
         toast.error("Google Sign-In not loaded. Please refresh the page.");
         localStorage.removeItem("logininprogress");
+        setShowSpinnerOverlay(false);
         return;
       }
 
@@ -696,6 +703,7 @@ function Signin({
     } catch (err) {
       console.error("Google login error:", err);
       localStorage.removeItem("logininprogress");
+      setShowSpinnerOverlay(false);
       toast.error("Failed to initiate Google login. Try again.");
     }
   };
@@ -718,6 +726,7 @@ function Signin({
 
       // Set login in progress
       localStorage.setItem("logininprogress", "yes");
+      setShowSpinnerOverlay(true);
 
       // Generate random state for CSRF validation
       const randomState = Math.random().toString(36).substring(2);
@@ -744,12 +753,13 @@ function Signin({
     } catch (err) {
       console.error("GitHub login error:", err);
       localStorage.removeItem("logininprogress");
+      setShowSpinnerOverlay(false);
       toast.error("Failed to initiate GitHub login. Try again.");
     }
   };
 
   return (
-    <div className={cn("w-full min-w-md mx-auto", className)} {...props}>
+    <div className={cn("w-full min-w-md mx-auto relative", className)} {...props}>
       {show2FA ? (
         <TwoFactorAuth 
           onSubmit={handleVerifyOTP}
@@ -760,14 +770,23 @@ function Signin({
           showCallOption={false}
         />
       ) : (
-        <LoginForm 
-          onSubmit={handleLogin} 
-          isLoading={isLoading} 
-          error={error}
-          onGoogleLogin={handleGoogleLogin}
-          onGithubLogin={handleGithubLogin}
-          isSocialLoading={isSocialLoading}
-        />
+        <>
+          {/* Spinner overlay - positioned relative to form */}
+          {showSpinnerOverlay && (
+            <div className="absolute inset-0 bg-gray-900/80 flex items-center justify-center z-50 rounded-lg">
+              <Spinner className="text-blue-500" size={64} />
+            </div>
+          )}
+          
+          <LoginForm 
+            onSubmit={handleLogin} 
+            isLoading={isLoading} 
+            error={error}
+            onGoogleLogin={handleGoogleLogin}
+            onGithubLogin={handleGithubLogin}
+            isSocialLoading={isSocialLoading}
+          />
+        </>
       )}
     </div>
   );

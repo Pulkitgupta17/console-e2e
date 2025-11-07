@@ -23,6 +23,7 @@ import { toast } from "sonner";
 import type { SignupData, OtpStatus, SocialUser } from "@/interfaces/signupInterface";
 import { getCookie } from "@/services/commonMethods";
 import CompleteSocialSignupForm from "./complete-social-signup";
+import { Spinner } from '@/components/ui/shadcn-io/spinner';
 
 // Declare Google Identity Services types
 declare global {
@@ -65,6 +66,7 @@ function SignupForm({
   const [showEmailExistsError, setShowEmailExistsError] = useState(false);
   const [socialUser, setSocialUser] = useState<SocialUser | null>(null);
   const [showSocialSignup, setShowSocialSignup] = useState(false);
+  const [showSpinnerOverlay, setShowSpinnerOverlay] = useState(false);
   
   // Use ref to prevent duplicate OAuth processing
   const hasProcessedOAuth = useRef(false);
@@ -116,6 +118,7 @@ function SignupForm({
       if (code && scope && scope.includes('email')) {
         try {
           setIsGoogleLoading(true);
+          setShowSpinnerOverlay(true);
           // Send full redirect URI to backend (must match what was used in OAuth initiation)
           const fullRedirectUri = `${window.location.origin}/accounts/signup`;
           const response = await googleCallback(code, fullRedirectUri);
@@ -146,6 +149,7 @@ function SignupForm({
           localStorage.removeItem('logininprogress');
         } finally {
           setIsGoogleLoading(false);
+          setShowSpinnerOverlay(false);
         }
       }
       // Handle GitHub OAuth callback
@@ -162,6 +166,7 @@ function SignupForm({
 
         try {
           setIsGoogleLoading(true);
+          setShowSpinnerOverlay(true);
           
           // Import GitHub callback service
           const { githubCallback } = await import("@/services/signupService");
@@ -196,6 +201,7 @@ function SignupForm({
           localStorage.removeItem('github_oauth_state');
         } finally {
           setIsGoogleLoading(false);
+          setShowSpinnerOverlay(false);
         }
       }
     };
@@ -380,11 +386,13 @@ function SignupForm({
 
       // Set login in progress
       localStorage.setItem("logininprogress", "yes");
+      setShowSpinnerOverlay(true);
 
       // Check if Google API is loaded
       if (!window.google) {
         toast.error("Google Sign-In not loaded. Please refresh the page.");
         localStorage.removeItem("logininprogress");
+        setShowSpinnerOverlay(false);
         return;
       }
 
@@ -405,6 +413,7 @@ function SignupForm({
     } catch (err) {
       console.error("Google sign-in error:", err);
       localStorage.removeItem("logininprogress");
+      setShowSpinnerOverlay(false);
       toast.error("Failed to initiate Google sign-up. Try again.");
     }
   };
@@ -424,6 +433,7 @@ function SignupForm({
 
     // Set login in progress
     localStorage.setItem("logininprogress", "yes");
+    setShowSpinnerOverlay(true);
 
     // Generate random state for CSRF validation
     const state = Math.random().toString(36).substring(7);
@@ -470,7 +480,14 @@ function SignupForm({
   }
 
   return (
-    <div className={cn("w-full max-w-md mx-auto", className)} {...props}>
+    <div className={cn("w-full max-w-md mx-auto relative", className)} {...props}>
+      {/* Spinner overlay - positioned relative to form */}
+      {showSpinnerOverlay && (
+        <div className="absolute inset-0 bg-gray-900/80 flex items-center justify-center z-50 rounded-lg">
+          <Spinner className="text-blue-500" size={64} />
+        </div>
+      )}
+      
       <Card className="border-gray-800/50 backdrop-blur-sm form-fade-in" style={{ backgroundColor: 'var(--signup-card-bg)' }}>
         <CardHeader className="text-left space-y-2">
           <CardTitle className="text-2xl font-bold text-white">
