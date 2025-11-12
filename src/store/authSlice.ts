@@ -28,12 +28,32 @@ type AuthState = {
 
 const storedToken = getCookie("token");
 const storedApiKey = getCookie("apikey");
+
+// Load user from localStorage or cookies
+const getStoredUser = (): User | null => {
+  try {
+    const localUser = localStorage.getItem('currentUser');
+    if (localUser) {
+      return JSON.parse(localUser);
+    }
+    // Fallback to cookie if localStorage doesn't have it
+    const cookieUser = getCookie('user');
+    if (cookieUser) {
+      return typeof cookieUser === 'string' ? JSON.parse(cookieUser) : cookieUser;
+    }
+    return null;
+  } catch (error) {
+    console.error('Error loading stored user:', error);
+    return null;
+  }
+};
+
 const initialState: AuthState = {
   token: storedToken,
   apiKey: storedApiKey,
   isAuthenticated: validateUser(),
 
-  user: null,
+  user: getStoredUser(),
   loading: false,
   error: null,
 };

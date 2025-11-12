@@ -21,7 +21,7 @@ import { GoogleReCaptchaProvider, useGoogleReCaptcha } from "react-google-recapt
 import { customerDetailsVerification, sendOtpEmail, googleCallback } from "@/services/signupService";
 import { toast } from "sonner";
 import type { SignupData, OtpStatus, SocialUser } from "@/interfaces/signupInterface";
-import { getCookie } from "@/services/commonMethods";
+import { getCookie, removeCookie } from "@/services/commonMethods";
 import CompleteSocialSignupForm from "./complete-social-signup";
 import { Spinner } from '@/components/ui/shadcn-io/spinner';
 
@@ -75,10 +75,19 @@ function SignupForm({
   useEffect(() => {
     const token = getCookie('token');
     const apikey = getCookie('apikey');
+    const loginInProgress = localStorage.getItem('logininprogress');
 
     if (token && apikey) {
-      navigate('/');
-      return;
+      if(loginInProgress === 'yes') {
+        removeCookie('token');
+        removeCookie('apikey');
+        removeCookie('user');
+        localStorage.removeItem("logininprogress");
+      }
+      else{
+        navigate('/');
+        return;
+      }
     }
   }, [navigate]);
 
@@ -96,7 +105,6 @@ function SignupForm({
     const handleOAuthCallback = async () => {
       // Prevent duplicate processing using ref
       if (hasProcessedOAuth.current) {
-        console.log("⚠️ OAuth callback already processed, skipping");
         return;
       }
 
@@ -112,7 +120,6 @@ function SignupForm({
 
       // Mark as processed immediately
       hasProcessedOAuth.current = true;
-      console.log("🔒 OAuth callback processing started (locked)");
 
       // Handle Google OAuth callback
       if (code && scope && scope.includes('email')) {
@@ -265,10 +272,10 @@ function SignupForm({
     }
 
     // Check if login already in progress
-    if (localStorage.getItem("logininprogress") === "yes") {
-      toast.error("Signup already in progress. Please wait.");
-      return;
-    }
+    // if (localStorage.getItem("logininprogress") === "yes") {
+    //   toast.error("Signup already in progress. Please wait.");
+    //   return;
+    // }
 
     // Check if user already exists
     if (localStorage.getItem("currentUser")) {
@@ -420,10 +427,10 @@ function SignupForm({
 
   const handleGithubSignup = () => {
     // Check if login already in progress
-    if (localStorage.getItem("logininprogress") === "yes") {
-      toast.error("Signup already in progress. Please wait.");
-      return;
-    }
+    // if (localStorage.getItem("logininprogress") === "yes") {
+    //   toast.error("Signup already in progress. Please wait.");
+    //   return;
+    // }
 
     // Check if user already exists
     if (localStorage.getItem("currentUser")) {

@@ -24,7 +24,6 @@ import {
 import { useGoogleReCaptcha } from "react-google-recaptcha-v3"
 import { useAppDispatch } from "@/store/store"
 import { login as loginAction, type User } from "@/store/authSlice"
-import { setCookie } from "@/services/commonMethods"
 import type { SignupData, OtpStatus } from "@/interfaces/signupInterface"
 
 interface OtpVerificationProps extends React.ComponentProps<"div"> {
@@ -281,11 +280,7 @@ function OtpVerification({
           email: signupData.email,
         };
 
-        // Set cookies
-        setCookie('token', token);
-        setCookie('apikey', apiKey);
-
-        // Dispatch login action
+        // Dispatch login action (this will set cookies automatically)
         dispatch(loginAction({ token, apiKey, user }));
 
         // Store user data in localStorage
@@ -302,6 +297,9 @@ function OtpVerification({
         }
 
         toast.success("Signup successful! Welcome to E2E Networks");
+        
+        // Remove login progress flag before navigating
+        localStorage.removeItem("logininprogress");
         
         // Navigate to dashboard
         setTimeout(() => {

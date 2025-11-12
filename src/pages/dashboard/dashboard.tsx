@@ -8,7 +8,7 @@ const Dashboard = () => {
   const dispatch = useAppDispatch();
   const { user } = useAppSelector((state) => state.auth);
 
-  // Get the display name - prefer first name, fallback to username, then email
+
   const displayName = user?.first_name || user?.username || user?.email?.split('@')[0] || 'User';
   const fullName = user?.first_name && user?.last_name 
     ? `${user.first_name} ${user.last_name}` 

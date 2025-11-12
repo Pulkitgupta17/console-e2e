@@ -8,6 +8,8 @@ import type {
   SignupFirstPayload,
   UTMCampaignPayload,
   GoogleSignupPayload,
+  PasswordResetRequestPayload,
+  PasswordResetConfirmPayload,
 } from "@/interfaces/signupInterface";
 
 // Step 1: Verify customer details and send mobile OTP
@@ -145,3 +147,32 @@ export const getCustomerValidationStatus = async () => {
   return response.data;
 };
 
+// Password Reset APIs
+
+// Step 1: Request password reset (send email with reset link)
+export const requestPasswordReset = async (payload: PasswordResetRequestPayload, projectId?: string) => {
+  const params = projectId ? { project_id: projectId } : {};
+  const response = await PublicAPI.post(
+    "accounts/password/reset/",
+    payload,
+    { params }
+  );
+  return response.data;
+};
+
+// Step 2: Verify password reset token
+export const verifyPasswordResetToken = async (token: string) => {
+  const response = await PublicAPI.get(
+    `accounts/password/reset/confirm/?token=${encodeURIComponent(token)}`
+  );
+  return response.data;
+};
+
+// Step 3: Confirm password reset with new password
+export const confirmPasswordReset = async (payload: PasswordResetConfirmPayload, token: string) => {
+  const response = await PublicAPI.post(
+    `accounts/password/reset/confirm/?token=${encodeURIComponent(token)}`,
+    payload
+  );
+  return response.data;
+};

@@ -90,3 +90,17 @@ export interface SocialUser {
   provider: string;
 }
 
+// Password Reset Interfaces
+
+export interface PasswordResetRequestPayload {
+  email: string;
+  recaptcha: string;
+  version: string;
+}
+
+export interface PasswordResetConfirmPayload {
+  uid: string;
+  token: string;
+  new_password1: string;
+  new_password2: string;
+}

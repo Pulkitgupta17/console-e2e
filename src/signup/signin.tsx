@@ -10,7 +10,7 @@ import { Input } from "@/components/ui/input"
 import { cn } from "@/lib/utils"
 import { useState, useEffect, useRef } from "react"
 import { useNavigate } from "react-router-dom"
-import { Eye, EyeOff } from "lucide-react"
+import { Eye, EyeOff, Info } from "lucide-react"
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
@@ -22,7 +22,7 @@ import { useAppDispatch } from "@/store/store";
 import CryptoJS from "crypto-js";
 import API from "@/axios";
 import TwoFactorAuth from "./twoFactorAuth";
-import { getCookie } from "@/services/commonMethods";
+import { getCookie, removeCookie } from "@/services/commonMethods";
 import { googleCallback, verifySocialEmail, loginGoogle, loginGithub, githubCallback, getCustomerValidationStatus } from "@/services/signupService";
 import type { SocialUser } from "@/interfaces/signupInterface";
 import { Spinner } from '@/components/ui/shadcn-io/spinner';
@@ -54,7 +54,7 @@ const LoginForm: React.FC<{
   onGithubLogin: () => void;
   isSocialLoading: boolean;
 }> = ({ onSubmit, isLoading, error, onGoogleLogin, onGithubLogin, isSocialLoading }) => {
-  const { register, handleSubmit, watch, formState: { isSubmitting, isValid } } = useForm<FormFields>({
+  const { register, handleSubmit, formState: { isSubmitting, isValid } } = useForm<FormFields>({
     defaultValues: { email: "", password: "" },
     resolver: zodResolver(schema),
   });
@@ -62,11 +62,7 @@ const LoginForm: React.FC<{
   const navigate = useNavigate();
 
   const handleForgotPassword = () => {
-    if (!watch("email").trim()) {
-      toast.error("Please enter your email address first");
-      return;
-    }
-    toast.success("Password reset link sent to your email!");
+    navigate('/accounts/password/reset');
   };
 
   return (
@@ -127,8 +123,20 @@ const LoginForm: React.FC<{
                     id="remember"
                     className="w-4 h-4 text-cyan-600 bg-gray-800 border-gray-700 rounded focus:ring-cyan-500 focus:ring-2"
                   />
-                  <label htmlFor="remember" className="text-sm text-gray-300">
-                    Remember me
+                  <label htmlFor="remember" className="text-sm text-gray-400 flex items-center gap-1">
+                    Trust this device for 60 days?
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        window.open('https://docs.e2enetworks.com/docs/myaccount/GettingStarted/sign_in/#sign-in-with-trusting-the-device', '_blank', 'noopener,noreferrer');
+                      }}
+                      className="text-gray-400 hover:text-cyan-400 transition-colors inline-flex items-center"
+                      aria-label="Learn more about trusting the device"
+                      title="How to use trust this device?"
+                    >
+                      <Info className="w-4 h-4" />
+                    </button>
                   </label>
                 </div>
                 <button
@@ -226,10 +234,20 @@ function Signin({
   useEffect(() => {
     const token = getCookie('token');
     const apikey = getCookie('apikey');
+    const loginInProgress = localStorage.getItem('logininprogress');
 
-    if (token && apikey && localStorage.getItem('logininprogress') !== 'true') {
-      navigate('/');
-      return;
+    // Only redirect if logged in AND not in the middle of signup/login process
+    if (token && apikey) {
+      if(loginInProgress === 'yes') {
+        removeCookie('token');
+        removeCookie('apikey');
+        removeCookie('user');
+        localStorage.removeItem("logininprogress");
+      }
+      else{
+        navigate('/');
+        return;
+      }
     }
   }, [navigate]);
 
@@ -507,6 +525,9 @@ function Signin({
         console.warn("Failed to get customer validation status:", error);
       }
       
+      // Remove login progress flag before navigating
+      localStorage.removeItem("logininprogress");
+      
       toast.success("Login successful!");
       navigate("/");
       return;
@@ -559,6 +580,9 @@ function Signin({
           console.warn("Failed to get customer validation status:", error);
         }
 
+        // Remove login progress flag before navigating
+        localStorage.removeItem("logininprogress");
+
         toast.success("Login successful!");
         navigate("/");
       } else {
@@ -577,9 +601,9 @@ function Signin({
       return;
     }
 
-    if (localStorage.getItem("logininprogress") === "yes") {
-      return;
-    }
+    // if (localStorage.getItem("logininprogress") === "yes") {
+    //   return;
+    // }
 
     setIsLoading(true);
     setError(null);
@@ -634,6 +658,10 @@ function Signin({
             apiKey: response.data.apikey, 
             user: simpleUser 
           }));
+          
+          // Remove login progress flag before navigating
+          localStorage.removeItem("logininprogress");
+          
           toast.success("Login successful!");
           navigate("/");
         }
@@ -645,9 +673,10 @@ function Signin({
           err?.response?.data ||
           "Error while Sign In!"
       );
+      // Remove flag on error
+      localStorage.removeItem("logininprogress");
     } finally {
       setIsLoading(false);
-      localStorage.removeItem("logininprogress");
     }
   };
 
@@ -656,23 +685,33 @@ function Signin({
     setShow2FA(false);
     setError(null);
     hasRequestedOTP.current = false; // Reset OTP flag
+    localStorage.removeItem("logininprogress"); // Remove flag when cancelling 2FA
   };
 
   const handleGoogleLogin = () => {
     try {
       // Check if user already logged in
-      const token = getCookie('token');
-      const apikey = getCookie('apikey');
-      if (token && apikey) {
-        navigate("/");
-        return;
-      }
+      // const token = getCookie('token');
+      // const apikey = getCookie('apikey');
+      // const loginInProgress = localStorage.getItem('logininprogress');
+      // if (token && apikey) {
+      //   if(loginInProgress === 'yes') {
+      //     removeCookie('token');
+      //     removeCookie('apikey');
+      //     removeCookie('user');
+      //     localStorage.removeItem("logininprogress");
+      //   }
+      //   else{
+      //     navigate("/");
+      //     return;
+      //   }
+      // }
 
       // Check if login already in progress
-      if (localStorage.getItem("logininprogress") === "yes") {
-        toast.error("Login already in progress. Please wait.");
-        return;
-      }
+      // if (localStorage.getItem("logininprogress") === "yes") {
+      //   toast.error("Login already in progress. Please wait.");
+      //   return;
+      // }
 
       // Set login in progress
       localStorage.setItem("logininprogress", "yes");
@@ -711,18 +750,27 @@ function Signin({
   const handleGithubLogin = () => {
     try {
       // Check if user already logged in
-      const token = getCookie('token');
-      const apikey = getCookie('apikey');
-      if (token && apikey) {
-        navigate("/");
-        return;
-      }
+      // const token = getCookie('token');
+      // const apikey = getCookie('apikey');
+      // const loginInProgress = localStorage.getItem('logininprogress');
+      // if (token && apikey) {
+      //   if(loginInProgress === 'yes') {
+      //     removeCookie('token');
+      //     removeCookie('apikey');
+      //     removeCookie('user');
+      //     localStorage.removeItem("logininprogress");
+      //   }
+      //   else{
+      //     navigate("/");
+      //     return;
+      //   }
+      // }
 
       // Check if login already in progress
-      if (localStorage.getItem("logininprogress") === "yes") {
-        toast.error("Login already in progress. Please wait.");
-        return;
-      }
+      // if (localStorage.getItem("logininprogress") === "yes") {
+      //   toast.error("Login already in progress. Please wait.");
+      //   return;
+      // }
 
       // Set login in progress
       localStorage.setItem("logininprogress", "yes");
