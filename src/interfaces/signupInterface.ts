@@ -104,3 +104,54 @@ export interface PasswordResetConfirmPayload {
   new_password1: string;
   new_password2: string;
 }
+
+export interface PasswordExpiryChangePayload {
+  new_password1: string;
+  new_password2: string;
+}
+
+export interface VerifyContactPersonResponse {
+  email: string;
+  iam_type: string;
+  primary_customer_name: string;
+  role: string;
+}
+
+export interface SendOtpPhonePayload {
+  mobile: string;
+  action: string;
+  primary_customer_name?: string;
+  contact_type?: string;
+  recaptcha: string;
+  version: string;
+  retry?: boolean;
+  retry_type?: string;
+}
+
+export interface VerifyPhoneOtpPayload {
+  mobile: string;
+  otp: string;
+}
+
+export interface VerifyPhoneOtpResponse {
+  code: number;
+  data: {
+    mobile_otp_verified_code: string;
+    otp_verified: boolean;
+    message?: string;
+  };
+  errors: any;
+  message: string;
+}
+
+export interface VerifyContactPersonPayload {
+  first_name: string;
+  last_name: string;
+  password: string;
+  confirm_password: string;
+  email: string;
+  phone: string;
+  token: string;
+  iam_type: string;
+  mobile_otp_verified_code: string;
+}

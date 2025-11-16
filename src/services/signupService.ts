@@ -10,6 +10,11 @@ import type {
   GoogleSignupPayload,
   PasswordResetRequestPayload,
   PasswordResetConfirmPayload,
+  VerifyContactPersonResponse,
+  SendOtpPhonePayload,
+  VerifyPhoneOtpPayload,
+  VerifyPhoneOtpResponse,
+  VerifyContactPersonPayload,
 } from "@/interfaces/signupInterface";
 
 // Step 1: Verify customer details and send mobile OTP
@@ -172,6 +177,69 @@ export const verifyPasswordResetToken = async (token: string) => {
 export const confirmPasswordReset = async (payload: PasswordResetConfirmPayload, token: string) => {
   const response = await PublicAPI.post(
     `accounts/password/reset/confirm/?token=${encodeURIComponent(token)}`,
+    payload
+  );
+  return response.data;
+};
+
+// Password Expiry APIs
+
+export interface PasswordExpiryChangePayload {
+  new_password1: string;
+  new_password2: string;
+}
+
+export const changeExpiredPassword = async (payload: PasswordExpiryChangePayload) => {
+  const response = await API.post(
+    "password-policy-api/password/change/",
+    payload
+  );
+  return response.data;
+};
+
+// Logout API (called after password change)
+export const logoutAPI = async (sessionId: string) => {
+  const response = await API.post(
+    "logout",
+    { sessionid: sessionId }
+  );
+  return response.data;
+};
+
+export const verifyContactPersonToken = async (token: string): Promise<VerifyContactPersonResponse> => {
+  const response = await PublicAPI.get(
+    `accounts/verify-contact-person/${token}` // token already includes ?token=
+  );
+  return response.data;
+};
+
+export const sendOtpPhone = async (payload: SendOtpPhonePayload) => {
+  const response = await PublicAPI.post(
+    "accounts/send-otp-phone/",
+    payload
+  );
+  return response.data;
+};
+
+export const verifyPhoneOtp = async (payload: VerifyPhoneOtpPayload): Promise<VerifyPhoneOtpResponse> => {
+  const response = await PublicAPI.post(
+    "accounts/verify-phone-otp/",
+    payload
+  );
+  return response.data;
+};
+
+export const resendOtpForActivation = async (payload: SendOtpPhonePayload) => {
+  const response = await PublicAPI.post(
+    "accounts/customer-details-verification/",
+    payload
+  );
+  return response.data;
+};
+
+export const finalizeContactPersonActivation = async (payload: Omit<VerifyContactPersonPayload, 'token'>, token: string) => {
+  const response = await PublicAPI.post(
+    `accounts/verify-contact-person/${token}`, // token already includes ?token=
     payload
   );
   return response.data;

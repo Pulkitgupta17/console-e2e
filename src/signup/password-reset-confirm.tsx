@@ -15,7 +15,7 @@ import { useForm, type SubmitHandler } from "react-hook-form"
 import { z } from "zod"
 import { toast } from "sonner"
 import { Eye, EyeOff, Check, X } from "lucide-react"
-import { getCookie } from "@/services/commonMethods"
+import { getCookie, calculatePasswordStrength } from "@/services/commonMethods"
 import { useAppDispatch } from "@/store/store"
 import { logout } from "@/store/authSlice"
 import { verifyPasswordResetToken, confirmPasswordReset } from "@/services/signupService"
@@ -61,49 +61,10 @@ function PasswordResetConfirm({ className }: PasswordResetConfirmProps) {
   const password = watch("password");
   const confirmPassword = watch("confirmPassword");
 
-  // Calculate password strength (same as signup page)
-  const calculatePasswordStrength = (password: string) => {
-    let score = 0;
-    const checks = {
-      length: password.length >= 8,
-      lowercase: /[a-z]/.test(password),
-      uppercase: /[A-Z]/.test(password),
-      numbers: /\d/.test(password),
-      special: /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(password)
-    };
-
-    if (checks.length) score += 20;
-    if (checks.lowercase) score += 20;
-    if (checks.uppercase) score += 20;
-    if (checks.numbers) score += 20;
-    if (checks.special) score += 20;
-
-    let strength = 'weak';
-    let color = 'from-red-500 to-red-600';
-    let bgColor = 'bg-red-500/20';
-    let textColor = 'text-red-400';
-
-    if (score >= 80) {
-      strength = 'strong';
-      color = 'from-emerald-500 to-emerald-600';
-      bgColor = 'bg-emerald-500/20';
-      textColor = 'text-emerald-400';
-    } else if (score >= 60) {
-      strength = 'good';
-      color = 'from-cyan-500 to-cyan-600';
-      bgColor = 'bg-cyan-500/20';
-      textColor = 'text-cyan-400';
-    } else if (score >= 40) {
-      strength = 'fair';
-      color = 'from-yellow-500 to-yellow-600';
-      bgColor = 'bg-yellow-500/20';
-      textColor = 'text-yellow-400';
-    }
-
-    return { score, strength, color, bgColor, textColor, checks };
-  };
-
-  const passwordStrength = calculatePasswordStrength(password || "");
+  const passwordStrength = calculatePasswordStrength(password || "", {
+    minLength: 8,
+    requireSpecialChars: true,
+  });
   const passwordsMatch = password && confirmPassword && password === confirmPassword;
 
   // Extract token and verify on mount
@@ -120,14 +81,12 @@ function PasswordResetConfirm({ className }: PasswordResetConfirmProps) {
     verifyToken(tokenParam);
   }, [searchParams, navigate]);
 
-  // Logout if user is logged in
   useEffect(() => {
     const checkLoggedIn = async () => {
       const token = getCookie('token');
       const apikey = getCookie('apikey');
 
       if (token && apikey) {
-        // User is logged in, logout first
         dispatch(logout());
         localStorage.removeItem('logininprogress');
       }
@@ -142,7 +101,6 @@ function PasswordResetConfirm({ className }: PasswordResetConfirmProps) {
       
       setTokenValid(true);
       setIsLoading(false);
-      // Extract UUID if provided in response
       if (response?.uid) {
         setUuid(response.uid);
       }
@@ -208,7 +166,6 @@ function PasswordResetConfirm({ className }: PasswordResetConfirmProps) {
     }
   };
 
-  // Loading state
   if (isLoading) {
     return (
       <div className={cn("w-full max-w-md mx-auto flex items-center justify-center min-h-[400px]", className)}>
@@ -220,7 +177,6 @@ function PasswordResetConfirm({ className }: PasswordResetConfirmProps) {
     );
   }
 
-  // Invalid/Expired token state
   if (!tokenValid) {
     return (
       <div className={cn("w-full max-w-md mx-auto", className)}>
@@ -266,7 +222,6 @@ function PasswordResetConfirm({ className }: PasswordResetConfirmProps) {
     );
   }
 
-  // Success state
   if (successDiv) {
     return (
       <div className={cn("w-full max-w-md mx-auto", className)}>
@@ -303,7 +258,6 @@ function PasswordResetConfirm({ className }: PasswordResetConfirmProps) {
     );
   }
 
-  // Password reset form
   return (
     <div className={cn("w-full max-w-md mx-auto", className)}>
       <Card className="border-gray-800/50 backdrop-blur-sm form-fade-in" style={{ backgroundColor: 'var(--signup-card-bg)' }}>
@@ -348,23 +302,22 @@ function PasswordResetConfirm({ className }: PasswordResetConfirmProps) {
                   <p className="text-red-400 text-xs mt-1">This password was previously used. Please choose a different password.</p>
                 )}
 
-                {/* Password Strength Indicator */}
                 {password && (
                   <div className="space-y-2">
                     <div className="flex items-center gap-2">
                       <div className="flex-1 h-2 bg-gray-700 rounded-full overflow-hidden">
                         <div 
-                          className={`h-full bg-gradient-to-r ${passwordStrength.color} transition-all duration-300`}
-                          style={{ width: `${passwordStrength.score}%` }}
+                          className={`h-full bg-gradient-to-r ${passwordStrength?.color} transition-all duration-300`}
+                          style={{ width: `${passwordStrength?.score || 0}%` }}
                         />
                       </div>
-                      <span className={`text-xs font-medium ${passwordStrength.textColor}`}>
-                        {passwordStrength.strength}
+                      <span className={`text-xs font-medium ${passwordStrength?.textColor}`}>
+                        {passwordStrength?.strength}
                       </span>
                     </div>
                     
                     <div className="grid grid-cols-2 gap-1 text-xs">
-                      {Object.entries(passwordStrength.checks).map(([check, passed]) => (
+                      {passwordStrength && Object.entries(passwordStrength.checks).map(([check, passed]) => (
                         <div key={check} className={`flex items-center gap-1 ${passed ? 'text-emerald-400' : 'text-gray-500'}`}>
                           {passed ? <Check className="h-3 w-3" /> : <X className="h-3 w-3" />}
                           <span className="capitalize">
@@ -380,7 +333,6 @@ function PasswordResetConfirm({ className }: PasswordResetConfirmProps) {
                 )}
               </div>
 
-              {/* Confirm Password Field */}
               <div className="space-y-2">
                 <div className="relative">
                   <Input

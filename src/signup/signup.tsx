@@ -21,7 +21,7 @@ import { GoogleReCaptchaProvider, useGoogleReCaptcha } from "react-google-recapt
 import { customerDetailsVerification, sendOtpEmail, googleCallback } from "@/services/signupService";
 import { toast } from "sonner";
 import type { SignupData, OtpStatus, SocialUser } from "@/interfaces/signupInterface";
-import { getCookie, removeCookie } from "@/services/commonMethods";
+import { getCookie, removeCookie, calculatePasswordStrength } from "@/services/commonMethods";
 import CompleteSocialSignupForm from "./complete-social-signup";
 import { Spinner } from '@/components/ui/shadcn-io/spinner';
 
@@ -216,48 +216,10 @@ function SignupForm({
     handleOAuthCallback();
   }, [navigate]);
   
-  const calculatePasswordStrength = (password: string) => {
-    let score = 0;
-    const checks = {
-      length: password.length >= 8,
-      lowercase: /[a-z]/.test(password),
-      uppercase: /[A-Z]/.test(password),
-      numbers: /\d/.test(password),
-      special: /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(password)
-    };
-
-    if (checks.length) score += 20;
-    if (checks.lowercase) score += 20;
-    if (checks.uppercase) score += 20;
-    if (checks.numbers) score += 20;
-    if (checks.special) score += 20;
-
-    let strength = 'weak';
-    let color = 'from-red-500 to-red-600';
-    let bgColor = 'bg-red-500/20';
-    let textColor = 'text-red-400';
-
-    if (score >= 80) {
-      strength = 'strong';
-      color = 'from-emerald-500 to-emerald-600';
-      bgColor = 'bg-emerald-500/20';
-      textColor = 'text-emerald-400';
-    } else if (score >= 60) {
-      strength = 'good';
-      color = 'from-cyan-500 to-cyan-600';
-      bgColor = 'bg-cyan-500/20';
-      textColor = 'text-cyan-400';
-    } else if (score >= 40) {
-      strength = 'fair';
-      color = 'from-yellow-500 to-yellow-600';
-      bgColor = 'bg-yellow-500/20';
-      textColor = 'text-yellow-400';
-    }
-
-    return { score, strength, color, bgColor, textColor, checks };
-  };
-
-  const passwordStrength = calculatePasswordStrength(watch("password"));
+  const passwordStrength = calculatePasswordStrength(watch("password"), {
+    minLength: 8,
+    requireSpecialChars: true,
+  });
 
   const onSubmit: SubmitHandler<FormFields> = async (data) => {
     if (!executeRecaptcha) {
@@ -587,17 +549,17 @@ function SignupForm({
                     <div className="flex items-center gap-2">
                       <div className="flex-1 h-2 bg-gray-700 rounded-full overflow-hidden">
                         <div 
-                          className={`h-full bg-gradient-to-r ${passwordStrength.color} transition-all duration-300`}
-                          style={{ width: `${passwordStrength.score}%` }}
+                          className={`h-full bg-gradient-to-r ${passwordStrength?.color} transition-all duration-300`}
+                          style={{ width: `${passwordStrength?.score || 0}%` }}
                         />
                       </div>
-                      <span className={`text-xs font-medium ${passwordStrength.textColor}`}>
-                        {passwordStrength.strength}
+                      <span className={`text-xs font-medium ${passwordStrength?.textColor}`}>
+                        {passwordStrength?.strength}
                       </span>
                     </div>
                     
                     <div className="grid grid-cols-2 gap-1 text-xs">
-                      {Object.entries(passwordStrength.checks).map(([check, passed]) => (
+                      {passwordStrength && Object.entries(passwordStrength.checks).map(([check, passed]) => (
                         <div key={check} className={`flex items-center gap-1 ${passed ? 'text-emerald-400' : 'text-gray-500'}`}>
                           {passed ? <Check className="h-3 w-3" /> : <X className="h-3 w-3" />}
                           <span className="capitalize">

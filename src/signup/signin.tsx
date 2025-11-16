@@ -47,7 +47,7 @@ const VERIFIED_SUCCESS_TEXT = "True";
 
 // LoginForm component
 const LoginForm: React.FC<{
-  onSubmit: (data: FormFields) => Promise<void>;
+  onSubmit: (data: FormFields, rememberMe: boolean) => Promise<void>;
   isLoading: boolean;
   error?: string | null;
   onGoogleLogin: () => void;
@@ -59,7 +59,12 @@ const LoginForm: React.FC<{
     resolver: zodResolver(schema),
   });
   const [showPassword, setShowPassword] = useState(false);
+  const [rememberMe, setRememberMe] = useState(false);
   const navigate = useNavigate();
+  
+  const handleFormSubmit = async (data: FormFields) => {
+    await onSubmit(data, rememberMe);
+  };
 
   const handleForgotPassword = () => {
     navigate('/accounts/password/reset');
@@ -77,7 +82,7 @@ const LoginForm: React.FC<{
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <form className="space-y-4 mt-8" onSubmit={handleSubmit(onSubmit)}>
+          <form className="space-y-4 mt-8" onSubmit={handleSubmit(handleFormSubmit)}>
             <div className="space-y-4">
               <div className="space-y-2">
                 <Input
@@ -121,6 +126,8 @@ const LoginForm: React.FC<{
                   <input
                     type="checkbox"
                     id="remember"
+                    checked={rememberMe}
+                    onChange={(e) => setRememberMe(e.target.checked)}
                     className="w-4 h-4 text-cyan-600 bg-gray-800 border-gray-700 rounded focus:ring-cyan-500 focus:ring-2"
                   />
                   <label htmlFor="remember" className="text-sm text-gray-400 flex items-center gap-1">
@@ -227,8 +234,27 @@ function Signin({
   const [show2FA, setShow2FA] = useState(false);
   const [isSocialLoading, setIsSocialLoading] = useState(false);
   const [showSpinnerOverlay, setShowSpinnerOverlay] = useState(false);
+  const [userPhone, setUserPhone] = useState("");
+  const [rememberMe, setRememberMe] = useState(false);
   const hasProcessedOAuth = useRef(false);
   const hasRequestedOTP = useRef(false);
+
+  useEffect(() => {
+    localStorage.setItem('password_expired', 'false');
+  }, []);
+
+  // Check if user is logged out (no currentUser in localStorage) - clear storage and cookies
+  useEffect(() => {
+    const currentUser = localStorage.getItem('currentUser');
+    if (!currentUser) {
+      localStorage.clear();
+      removeCookie('token');
+      removeCookie('apikey');
+      removeCookie('user');
+      removeCookie('yyy_xxx');
+      localStorage.setItem('password_expired', 'false');
+    }
+  }, []);
 
   // Redirect to dashboard if user is already logged in (check cookies)
   useEffect(() => {
@@ -518,6 +544,16 @@ function Signin({
       return;
     } 
     else {
+      // Check for password expiry before navigating
+      const isPasswordExpired = respData?.data?.is_password_expired || respData?.is_password_expired;
+      localStorage.setItem("password_expired", isPasswordExpired ? "true" : "false");
+
+      if (isPasswordExpired) {
+        localStorage.removeItem("logininprogress");
+        navigate("/accounts/password-reset");
+        return;
+      }
+
       // No 2FA - Get customer validation status before navigating to dashboard
       try {
         await getCustomerValidationStatus();
@@ -557,20 +593,78 @@ function Signin({
     try {
       const res = await API.post(url, { 
         token: code, 
-        remember_me: false,
+        remember_me: rememberMe,
         recaptcha: recaptchaToken,
         version: "v3"
       });
 
       if (res.data.code === 200 && res.data?.data?.status === true) {
-        const isExpired = res.data?.is_password_expired;
+        const isExpired = res.data?.data?.is_password_expired || res.data?.is_password_expired;
         localStorage.setItem("password_expired", isExpired ? "true" : "false");
 
-        const deviceData = res.data?.data;
+        // Check for password expiry - redirect before other operations
+        if (isExpired) {
+          // Handle device cookies
+          const deviceData = res.data?.data?.data;
+          if (deviceData?.key && deviceData?.value && deviceData?.age) {
+            // Delete old remember cookie if exists
+            const allCookies = document.cookie.split(';');
+            const rememberCookie = allCookies.find(cookie => cookie.trim().startsWith('remember-cookie_'));
+            if (rememberCookie) {
+              const cookieName = rememberCookie.split('=')[0].trim();
+              const domain = import.meta.env.VITE_domainForCookie;
+              let deleteCookieString = `${cookieName}=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;`;
+              if (domain && !window.location.hostname.includes('localhost')) {
+                deleteCookieString += `; domain=${domain}`;
+              }
+              document.cookie = deleteCookieString;
+            }
+            
+            // Set new device cookie
+            const now = new Date();
+            now.setMinutes(now.getMinutes() + deviceData.age);
+            const cookieExpiry = new Date();
+            cookieExpiry.setDate(cookieExpiry.getDate() + 400); // 400 days expiry for cookie
+            const domain = import.meta.env.VITE_domainForCookie;
+            let cookieString = `${deviceData.key}=${deviceData.value}; expires=${cookieExpiry.toUTCString()}; path=/; SameSite=Strict`;
+            if (domain && !window.location.hostname.includes('localhost')) {
+              cookieString += `; domain=${domain}`;
+            }
+            document.cookie = cookieString;
+          }
+
+          localStorage.removeItem("logininprogress");
+          navigate("/accounts/password-reset");
+          return;
+        }
+
+        // Handle device cookies
+        const deviceData = res.data?.data?.data;
         if (deviceData?.key && deviceData?.value && deviceData?.age) {
+          // Delete old remember cookie if exists
+          const allCookies = document.cookie.split(';');
+          const rememberCookie = allCookies.find(cookie => cookie.trim().startsWith('remember-cookie_'));
+          if (rememberCookie) {
+            const cookieName = rememberCookie.split('=')[0].trim();
+            const domain = import.meta.env.VITE_domainForCookie;
+            let deleteCookieString = `${cookieName}=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;`;
+            if (domain && !window.location.hostname.includes('localhost')) {
+              deleteCookieString += `; domain=${domain}`;
+            }
+            document.cookie = deleteCookieString;
+          }
+          
+          // Set new device cookie
           const now = new Date();
           now.setMinutes(now.getMinutes() + deviceData.age);
-          document.cookie = `${deviceData.key}=${deviceData.value}; expires=${now.toUTCString()}; path=/; SameSite=Strict`;
+          const cookieExpiry = new Date();
+          cookieExpiry.setDate(cookieExpiry.getDate() + 400); // 400 days expiry for cookie
+          const domain = import.meta.env.VITE_domainForCookie;
+          let cookieString = `${deviceData.key}=${deviceData.value}; expires=${cookieExpiry.toUTCString()}; path=/; SameSite=Strict`;
+          if (domain && !window.location.hostname.includes('localhost')) {
+            cookieString += `; domain=${domain}`;
+          }
+          document.cookie = cookieString;
         }
 
         // Get customer validation status after successful 2FA
@@ -595,7 +689,120 @@ function Signin({
     }
   };
 
-  const handleLogin = async (data: FormFields) => {
+  const handleBackupCodeSubmit = async (backupCode: string, rememberMeValue: boolean): Promise<void> => {
+    if (!executeRecaptcha) {
+      toast.error("reCAPTCHA not ready");
+      return;
+    }
+    
+    setIsLoading(true);
+    
+    try {
+      const recaptchaToken = await executeRecaptcha("login");
+      const res = await API.post("two-factor/static/login/", {
+        token: backupCode,
+        remember_me: rememberMeValue,
+        recaptcha: recaptchaToken,
+        version: "v3"
+      });
+
+      if (res.data.code === 200 && res.data?.data?.status === true) {
+        const isExpired = res.data?.data?.is_password_expired || res.data?.is_password_expired;
+        localStorage.setItem("password_expired", isExpired ? "true" : "false");
+
+        // Check for password expiry - redirect before other operations
+        if (isExpired) {
+          // Handle device cookies
+          const deviceData = res.data?.data?.data;
+          if (deviceData?.key && deviceData?.value && deviceData?.age) {
+            // Delete old remember cookie if exists
+            const allCookies = document.cookie.split(';');
+            const rememberCookie = allCookies.find(cookie => cookie.trim().startsWith('remember-cookie_'));
+            if (rememberCookie) {
+              const cookieName = rememberCookie.split('=')[0].trim();
+              const domain = import.meta.env.VITE_domainForCookie;
+              let deleteCookieString = `${cookieName}=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;`;
+              if (domain && !window.location.hostname.includes('localhost')) {
+                deleteCookieString += `; domain=${domain}`;
+              }
+              document.cookie = deleteCookieString;
+            }
+            
+            // Set new device cookie
+            const now = new Date();
+            now.setMinutes(now.getMinutes() + deviceData.age);
+            const cookieExpiry = new Date();
+            cookieExpiry.setDate(cookieExpiry.getDate() + 400); // 400 days expiry for cookie
+            const domain = import.meta.env.VITE_domainForCookie;
+            let cookieString = `${deviceData.key}=${deviceData.value}; expires=${cookieExpiry.toUTCString()}; path=/; SameSite=Strict`;
+            if (domain && !window.location.hostname.includes('localhost')) {
+              cookieString += `; domain=${domain}`;
+            }
+            document.cookie = cookieString;
+          }
+
+          // Remove login progress flag before navigating
+          localStorage.removeItem("logininprogress");
+          navigate("/accounts/password-reset");
+          return;
+        }
+
+        // Handle device cookies
+        const deviceData = res.data?.data?.data;
+        if (deviceData?.key && deviceData?.value && deviceData?.age) {
+          // Delete old remember cookie if exists
+          const allCookies = document.cookie.split(';');
+          const rememberCookie = allCookies.find(cookie => cookie.trim().startsWith('remember-cookie_'));
+          if (rememberCookie) {
+            const cookieName = rememberCookie.split('=')[0].trim();
+            const domain = import.meta.env.VITE_domainForCookie;
+            let deleteCookieString = `${cookieName}=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;`;
+            if (domain && !window.location.hostname.includes('localhost')) {
+              deleteCookieString += `; domain=${domain}`;
+            }
+            document.cookie = deleteCookieString;
+          }
+          
+          // Set new device cookie
+          const now = new Date();
+          now.setMinutes(now.getMinutes() + deviceData.age);
+          const cookieExpiry = new Date();
+          cookieExpiry.setDate(cookieExpiry.getDate() + 400); // 400 days expiry for cookie
+          const domain = import.meta.env.VITE_domainForCookie;
+          let cookieString = `${deviceData.key}=${deviceData.value}; expires=${cookieExpiry.toUTCString()}; path=/; SameSite=Strict`;
+          if (domain && !window.location.hostname.includes('localhost')) {
+            cookieString += `; domain=${domain}`;
+          }
+          document.cookie = cookieString;
+        }
+
+        // Get customer validation status after successful 2FA
+        try {
+          await getCustomerValidationStatus();
+        } catch (error) {
+          console.warn("Failed to get customer validation status:", error);
+        }
+
+        // Remove login progress flag before navigating
+        localStorage.removeItem("logininprogress");
+
+        toast.success("Login successful!");
+        navigate("/");
+      } else {
+        const errorMessage = res.data?.data?.message || "Verification failed! Please try again";
+        toast.error(errorMessage);
+        throw new Error(errorMessage);
+      }
+    } catch (err: any) {
+      const errorMessage = err?.response?.data?.data?.message || err?.response?.data?.message || "Verification failed! Please try again";
+      toast.error(errorMessage);
+      throw new Error(errorMessage);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleLogin = async (data: FormFields, rememberMeValue: boolean) => {
     if (!executeRecaptcha) {
       setError("Unable to execute reCAPTCHA. Please reload the page.");
       return;
@@ -607,6 +814,7 @@ function Signin({
 
     setIsLoading(true);
     setError(null);
+    setRememberMe(rememberMeValue);
     localStorage.setItem("logininprogress", "yes");
 
     try {
@@ -635,6 +843,16 @@ function Signin({
             };
             
             dispatch(loginAction({ token, apiKey, user }));
+            
+            // Check for password expiry
+            const isPasswordExpired = respData?.data?.is_password_expired || respData?.is_password_expired;
+            localStorage.setItem("password_expired", isPasswordExpired ? "true" : "false");
+            
+            // Store phone number for 2FA display
+            if (userKey.phone) {
+              setUserPhone(userKey.phone);
+            }
+            
             await checkFor2faOrDashboard(response.data);
             return;
           }
@@ -642,6 +860,10 @@ function Signin({
         
         // Fallback: Simple login success without 2FA data - direct navigation
         if (response.data.token && response.data.apikey) {
+          // Check for password expiry
+          const isPasswordExpired = response.data?.is_password_expired;
+          localStorage.setItem("password_expired", isPasswordExpired ? "true" : "false");
+
           const simpleUser: User = {
             username: response.data.username || "",
             first_name: response.data.first_name || "",
@@ -658,6 +880,13 @@ function Signin({
             apiKey: response.data.apikey, 
             user: simpleUser 
           }));
+          
+          if (isPasswordExpired) {
+            // Remove login progress flag before navigating
+            localStorage.removeItem("logininprogress");
+            navigate("/accounts/password-reset");
+            return;
+          }
           
           // Remove login progress flag before navigating
           localStorage.removeItem("logininprogress");
@@ -806,16 +1035,43 @@ function Signin({
     }
   };
 
+  const handleResendOTP = async (retry_type?: "sms" | "voice") => {
+    if (!executeRecaptcha) {
+      toast.error("reCAPTCHA not ready");
+      return;
+    }
+
+    try {
+      const recaptchaToken = await executeRecaptcha("resend_otp");
+      const payload: any = {
+        recaptcha: recaptchaToken,
+        version: "v3",
+      };
+
+      if (retry_type === "voice") {
+        payload.retry = true;
+        payload.retry_type = "voice";
+      }
+
+      await API.post("two-factor/totp/create/", payload);
+      toast.success(retry_type === 'voice' ? "OTP will be sent via call" : "OTP resent successfully");
+    } catch (error: any) {
+      toast.error(error?.response?.data?.message || "Failed to resend OTP");
+    }
+  };
+
   return (
     <div className={cn("w-full min-w-md mx-auto relative", className)} {...props}>
       {show2FA ? (
         <TwoFactorAuth 
           onSubmit={handleVerifyOTP}
           onCancel={handleCancel2FA}
+          onResend={handleResendOTP}
+          onBackupCodeSubmit={handleBackupCodeSubmit}
           isLoading={isLoading}
           error={null}
-          timer={0}
-          showCallOption={false}
+          phoneNumber={userPhone}
+          rememberMe={rememberMe}
         />
       ) : (
         <>
