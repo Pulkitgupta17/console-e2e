@@ -51,6 +51,7 @@ function OtpVerification({
   const [canResendMobile, setCanResendMobile] = useState(false);
   const [canResendEmail, setCanResendEmail] = useState(false);
   const [showChangeContact, setShowChangeContact] = useState(false);
+  const [termsAccepted, setTermsAccepted] = useState(false);
 
   // Mobile OTP Timer countdown
   useEffect(() => {
@@ -481,7 +482,8 @@ function OtpVerification({
                   type="checkbox"
                   id="terms-otp"
                   className="mt-1 w-4 h-4 text-cyan-600 bg-gray-800 border-gray-700 rounded focus:ring-cyan-500 focus:ring-2"
-                  required
+                  checked={termsAccepted}
+                  onChange={(e) => setTermsAccepted(e.target.checked)}
                 />
                 <label htmlFor="terms-otp" className="text-sm text-gray-400">
                   By continuing you agree to the{" "}
@@ -503,7 +505,7 @@ function OtpVerification({
                 type="submit" 
                 variant="signup" 
                 size="xl"
-                disabled={isSubmitting}
+                disabled={isSubmitting || !termsAccepted}
               >
                 {isSubmitting ? "Verifying..." : "Verify & Sign Up"}
               </Button>

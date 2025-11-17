@@ -244,3 +244,41 @@ export const finalizeContactPersonActivation = async (payload: Omit<VerifyContac
   );
   return response.data;
 };
+
+// Google Authenticator APIs
+
+export interface VerifyGATotpPayload {
+  totp: string;
+  recaptcha: string;
+  version: string;
+}
+
+export interface VerifyGABackupCodePayload {
+  token: string;
+  recaptcha: string;
+  version: string;
+}
+
+export const verifyGATotp = async (payload: VerifyGATotpPayload) => {
+  const response = await API.post(
+    "two-factor/ga-totp/verify/",
+    payload
+  );
+  return response.data;
+};
+
+export const verifyGABackupCode = async (payload: VerifyGABackupCodePayload) => {
+  const response = await API.post(
+    "two-factor/ga-totp/verify-static-code/",
+    payload
+  );
+  return response.data;
+};
+
+export const reportLostGAKey = async () => {
+  const response = await API.post(
+    "two-factor/ga-totp/key-lost/",
+    {}
+  );
+  return response.data;
+};

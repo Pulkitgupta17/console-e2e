@@ -22,8 +22,9 @@ import { useAppDispatch } from "@/store/store";
 import CryptoJS from "crypto-js";
 import API from "@/axios";
 import TwoFactorAuth from "./twoFactorAuth";
-import { getCookie, removeCookie } from "@/services/commonMethods";
-import { googleCallback, verifySocialEmail, loginGoogle, loginGithub, githubCallback, getCustomerValidationStatus } from "@/services/signupService";
+import GoogleAuthenticator from "./google-authenticator";
+import { getCookie, removeCookie, setCookie } from "@/services/commonMethods";
+import { googleCallback, verifySocialEmail, loginGoogle, loginGithub, githubCallback, getCustomerValidationStatus, verifyGATotp, verifyGABackupCode, reportLostGAKey } from "@/services/signupService";
 import type { SocialUser } from "@/interfaces/signupInterface";
 import { Spinner } from '@/components/ui/shadcn-io/spinner';
 
@@ -232,10 +233,14 @@ function Signin({
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [show2FA, setShow2FA] = useState(false);
+  const [showGA, setShowGA] = useState(false);
   const [isSocialLoading, setIsSocialLoading] = useState(false);
   const [showSpinnerOverlay, setShowSpinnerOverlay] = useState(false);
   const [userPhone, setUserPhone] = useState("");
   const [rememberMe, setRememberMe] = useState(false);
+  const [gaRecaptchaToken, setGaRecaptchaToken] = useState<string>("");
+  const [gaRecaptchaVersion, setGaRecaptchaVersion] = useState<'v2' | 'v3'>('v3');
+  const [loginResponseData, setLoginResponseData] = useState<any>(null);
   const hasProcessedOAuth = useRef(false);
   const hasRequestedOTP = useRef(false);
 
@@ -539,8 +544,42 @@ function Signin({
       return;
     }
     else if (isGaEnabled) {
-      // Handle Google Authenticator
-      toast.info("Google Authenticator verification required");
+      // Store auth tokens temporarily for GA verification
+      const token = respData?.data?.auth?.[0]?.auth_token;
+      const apiKey = respData?.data?.auth?.[0]?.apikey;
+      
+      if (token && apiKey) {
+        // Set cookies temporarily so API calls can authenticate
+        setCookie('token', token);
+        setCookie('apikey', apiKey);
+        
+        // Store redirect flags
+        if (respData?.data?.is_default_dashboard_tir) {
+          localStorage.setItem('redirectToTIR', 'true');
+        }
+        if (respData?.data?.contact_person_id) {
+          localStorage.setItem('contact_person_id', respData.data.contact_person_id);
+        }
+        
+        if (executeRecaptcha) {
+          try {
+            const recaptchaToken = await executeRecaptcha("GAAuthenticator");
+            setGaRecaptchaToken(recaptchaToken);
+            setGaRecaptchaVersion('v3');
+            setLoginResponseData(respData);
+            setShowGA(true);
+          } catch (error) {
+            toast.error("Failed to initialize reCAPTCHA. Please try again.");
+
+            removeCookie('token');
+            removeCookie('apikey');
+            dispatch(logout());
+            localStorage.removeItem("logininprogress");
+          }
+        } else {
+          toast.error("reCAPTCHA not ready. Please reload the page.");
+        }
+      }
       return;
     } 
     else {
@@ -830,20 +869,6 @@ function Signin({
           const userKey = respData?.data?.user;
           
           if (token && apiKey && userKey) {
-            const user: User = {
-              username: userKey.username || "",
-              first_name: userKey.first_name || "",
-              last_name: userKey.last_name || "",
-              phone: userKey.phone || "",
-              customer_country: userKey.customer_country || "",
-              crn: userKey.crn || "",
-              location: userKey.location || "",
-              projectId: respData?.data?.project_id || "",
-              email: userKey.current_user_email || "",
-            };
-            
-            dispatch(loginAction({ token, apiKey, user }));
-            
             // Check for password expiry
             const isPasswordExpired = respData?.data?.is_password_expired || respData?.is_password_expired;
             localStorage.setItem("password_expired", isPasswordExpired ? "true" : "false");
@@ -851,6 +876,28 @@ function Signin({
             // Store phone number for 2FA display
             if (userKey.phone) {
               setUserPhone(userKey.phone);
+            }
+            
+            // Check if GA is enabled before dispatching loginAction
+            // GA verification needs tokens to be stored temporarily, not in cookies yet
+            const isGaEnabled = respData?.data?.is_ga_enabled;
+            
+            if (!isGaEnabled) {
+              // Only dispatch loginAction if GA is not enabled
+              // If GA is enabled, tokens will be stored temporarily and dispatch happens after verification
+              const user: User = {
+                username: userKey.username || "",
+                first_name: userKey.first_name || "",
+                last_name: userKey.last_name || "",
+                phone: userKey.phone || "",
+                customer_country: userKey.customer_country || "",
+                crn: userKey.crn || "",
+                location: userKey.location || "",
+                projectId: respData?.data?.project_id || "",
+                email: userKey.current_user_email || "",
+              };
+              
+              dispatch(loginAction({ token, apiKey, user }));
             }
             
             await checkFor2faOrDashboard(response.data);
@@ -915,6 +962,205 @@ function Signin({
     setError(null);
     hasRequestedOTP.current = false; // Reset OTP flag
     localStorage.removeItem("logininprogress"); // Remove flag when cancelling 2FA
+  };
+
+  const handleCancelGA = () => {
+    // Clean up cookies and state
+    removeCookie('token');
+    removeCookie('apikey');
+    localStorage.removeItem("logininprogress");
+    dispatch(logout());
+    setShowGA(false);
+    setError(null);
+    setGaRecaptchaToken("");
+    setLoginResponseData(null);
+  };
+
+  const handleVerifyGA = async (code: string, isBackupCode: boolean): Promise<void> => {
+    if (!executeRecaptcha || !gaRecaptchaToken) {
+      toast.error("reCAPTCHA not ready");
+      return;
+    }
+
+    setIsLoading(true);
+    setError(null);
+
+    try {
+      let response;
+      if (isBackupCode) {
+        response = await verifyGABackupCode({
+          token: code,
+          recaptcha: gaRecaptchaToken,
+          version: gaRecaptchaVersion,
+        });
+      } else {
+        response = await verifyGATotp({
+          totp: code,
+          recaptcha: gaRecaptchaToken,
+          version: gaRecaptchaVersion,
+        });
+      }
+
+      if (response.code === 200 && response.data) {
+        if (!loginResponseData) {
+          toast.error("Session expired. Please log in again.");
+          handleCancelGA();
+          return;
+        }
+        
+        const respData = loginResponseData;
+        
+        const isExpired = respData?.data?.is_password_expired || response.data?.is_password_expired;
+        localStorage.setItem("password_expired", isExpired ? "true" : "false");
+
+        if (isExpired) {
+          localStorage.removeItem("logininprogress");
+          navigate("/accounts/password-reset");
+          return;
+        }
+
+        if (respData?.CSRF_COOKIE || response.data?.CSRF_COOKIE) {
+          const csrfToken = respData?.CSRF_COOKIE || response.data?.CSRF_COOKIE;
+          const expiryDate = new Date();
+          expiryDate.setDate(expiryDate.getDate() + 10);
+          document.cookie = `csrftoken=${csrfToken}; expires=${expiryDate.toUTCString()}; path=/; SameSite=Strict`;
+        }
+
+        // Get auth data from stored response (tokens are already in cookies)
+        const token = respData?.data?.auth?.[0]?.auth_token;
+        const apiKey = respData?.data?.auth?.[0]?.apikey;
+        const userKey = respData?.data?.user || response.data?.user;
+
+        if (token && apiKey && userKey) {
+          const user: User = {
+            username: userKey.username || "",
+            first_name: userKey.first_name || "",
+            last_name: userKey.last_name || "",
+            phone: userKey.phone || "",
+            customer_country: userKey.customer_country || "",
+            crn: userKey.crn || "",
+            location: userKey.location || "",
+            projectId: respData?.data?.project_id || response.data?.project_id || "",
+            email: userKey.current_user_email || "",
+          };
+
+          // Dispatch login action
+          dispatch(loginAction({ token, apiKey, user }));
+
+          // Store user data
+          localStorage.setItem('currentUser', JSON.stringify(user));
+          localStorage.setItem('email', user.email);
+
+          // Get customer validation status
+          try {
+            await getCustomerValidationStatus();
+          } catch (error) {
+            console.warn("Failed to get customer validation status:", error);
+          }
+
+          // Handle session cookies (trust device)
+          if (rememberMe) {
+            // Set 60-day session
+            const days = 60;
+            const cookie_name = 'remember';
+            const cookie_expiry_date = new Date();
+            cookie_expiry_date.setDate(cookie_expiry_date.getDate() + 400);
+            const expiryDate = new Date();
+            expiryDate.setTime(expiryDate.getTime() + days * 24 * 60 * 60 * 1000);
+            const cookie_value = expiryDate.toString();
+            const domain = import.meta.env.VITE_domainForCookie;
+            
+            let cookieString = `${cookie_name}=${cookie_value}; expires=${cookie_expiry_date.toUTCString()}; path=/; SameSite=Strict`;
+            if (domain && !window.location.hostname.includes('localhost')) {
+              cookieString += `; domain=${domain}`;
+            }
+            document.cookie = cookieString;
+          } else {
+            // Set 15-minute session
+            const minutes = 15;
+            const cookie_name = 'session_expiry';
+            const cookie_expiry = new Date();
+            cookie_expiry.setDate(cookie_expiry.getDate() + 400);
+            const expiryDate = new Date();
+            expiryDate.setTime(expiryDate.getTime() + minutes * 60 * 1000);
+            const cookie_value = expiryDate.toString();
+            const domain = import.meta.env.VITE_domainForCookie;
+            
+            let cookieString = `${cookie_name}=${cookie_value}; expires=${cookie_expiry.toUTCString()}; path=/; SameSite=Strict`;
+            if (domain && !window.location.hostname.includes('localhost')) {
+              cookieString += `; domain=${domain}`;
+            }
+            document.cookie = cookieString;
+          }
+
+          // Clean up GA temporary state
+          setLoginResponseData(null);
+          setGaRecaptchaToken("");
+          localStorage.removeItem("logininprogress");
+
+          // Handle redirect
+          const returnUrl = new URLSearchParams(window.location.search).get('returnUrl') || '/';
+          const source = getCookie('source');
+
+          if (returnUrl !== '/') {
+            navigate(returnUrl);
+          } else if (source === 'marketplace') {
+            removeCookie('source');
+            // Handle cross-domain message if needed
+            navigate('/');
+          } else if (source === 'gpu') {
+            removeCookie('source');
+            // Handle cross-domain message if needed
+            navigate('/');
+          } else if (localStorage.getItem('redirectToTIR')) {
+            localStorage.removeItem('redirectToTIR');
+            // Handle cross-domain message if needed
+            navigate('/');
+          } else {
+            toast.success("Login successful!");
+            navigate("/");
+          }
+        }
+      } else {
+        const errorMsg = response?.errors || response?.data?.errors || "Invalid code. Please try again.";
+        setError(errorMsg);
+        toast.error(errorMsg);
+      }
+    } catch (err: any) {
+      // Handle reCAPTCHA errors
+      if (err?.response?.data?.error?.[0] === "Error verifying reCAPTCHA, please try again.") {
+        setGaRecaptchaToken("");
+        toast.error("reCAPTCHA verification failed. Please try again.");
+      } else {
+        const errorMsg = err?.response?.data?.errors || err?.response?.data?.error || "Verification failed! Please try again.";
+        setError(errorMsg);
+        toast.error(errorMsg);
+      }
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleLostGAKey = async (): Promise<void> => {
+    if (!executeRecaptcha) {
+      toast.error("reCAPTCHA not ready");
+      return;
+    }
+
+    try {
+      setIsLoading(true);
+      const response = await reportLostGAKey();
+      
+      if (response.code === 200) {
+        toast.success(response.message || "Recovery instructions sent to your email");
+      } else {
+        toast.error(response.message || "Failed to report lost key");
+      }
+    } catch (err: any) {
+      toast.error(err?.response?.data?.errors || err?.response?.data?.message || "Failed to report lost key");
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handleGoogleLogin = () => {
@@ -1072,6 +1318,14 @@ function Signin({
           error={null}
           phoneNumber={userPhone}
           rememberMe={rememberMe}
+        />
+      ) : showGA ? (
+        <GoogleAuthenticator
+          onSubmit={handleVerifyGA}
+          onCancel={handleCancelGA}
+          onLostKey={handleLostGAKey}
+          isLoading={isLoading}
+          error={error}
         />
       ) : (
         <>

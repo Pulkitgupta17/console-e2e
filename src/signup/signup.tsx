@@ -576,28 +576,6 @@ function SignupForm({
               </div>
               
               <div className="space-y-2">
-                <div className="flex items-start gap-2 mt-6 mb-6">
-                  <input
-                    type="checkbox"
-                    id="terms"
-                    className="mt-1 w-4 h-4 text-cyan-600 bg-gray-800 border-gray-700 rounded focus:ring-cyan-500 focus:ring-2"
-                    required
-                  />
-                  <label htmlFor="terms" className="text-sm text-gray-400">
-                    By continuing you agree to the{" "}
-                    <a href="#" className="text-cyan-400 hover:text-cyan-300">
-                      terms
-                    </a>{" "}
-                    and{" "}
-                    <a href="#" className="text-cyan-400 hover:text-cyan-300">
-                      privacy policy
-                    </a>
-                    .
-                  </label>
-                </div>
-              </div>
-              
-              <div className="space-y-2">
                 <Button 
                   type="submit" 
                   variant="signup" 
