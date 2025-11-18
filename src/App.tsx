@@ -1,7 +1,24 @@
 import { AppRoutes } from './routes/routeConfig'
 import { Toaster } from 'sonner'
+import { useEffect } from 'react'
+import { useLocation } from 'react-router-dom'
+import { setCookie } from './services/commonMethods'
 
 function App() {
+  const location = useLocation();
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const service = urlParams.get('service');
+    
+    if (service) {
+      setCookie('source', service);
+      urlParams.delete('service');
+      
+      const newUrl = window.location.pathname + (urlParams.toString() ? '?' + urlParams.toString() : '');
+      window.history.replaceState({}, '', newUrl);
+    }
+  }, [location.search]);
+
   return (
     <>
     <AppRoutes />

@@ -41,6 +41,91 @@ export const getCookie = (cookieName: string): any => {
   return cookie.get(cookieName);
 };
 
+// Session Cookie Functions
+export const setSessionTimeCookie = (): void => {
+  const minutes = 15; // session will expire after 15 minutes
+  const cookie_name = 'session_expiry';
+  const cookie_expiry = new Date();
+  cookie_expiry.setDate(cookie_expiry.getDate() + 400);
+  const expiryDate = new Date();
+  expiryDate.setTime(expiryDate.getTime() + minutes * 60 * 1000);
+  const cookie_value = expiryDate.toString();
+  
+  const cookieOptions: any = {
+    expires: cookie_expiry,
+    path: '/',
+  };
+  
+  const domain = import.meta.env.VITE_domainForCookie;
+  if (domain && !window.location.hostname.includes('localhost')) {
+    cookieOptions.domain = domain;
+    cookieOptions.secure = true;
+  }
+  
+  cookie.set(cookie_name, cookie_value, cookieOptions);
+};
+
+export const setSessionFor60Days = (): void => {
+  const days = 60;
+  const cookie_name = 'remember';
+  const cookie_expiry_date = new Date();
+  cookie_expiry_date.setDate(cookie_expiry_date.getDate() + 400);
+  const expiryDate = new Date();
+  expiryDate.setTime(expiryDate.getTime() + days * 24 * 60 * 60 * 1000);
+  const cookie_value = expiryDate.toString();
+  
+  const cookieOptions: any = {
+    expires: cookie_expiry_date,
+    path: '/',
+  };
+  
+  const domain = import.meta.env.VITE_domainForCookie;
+  if (domain && !window.location.hostname.includes('localhost')) {
+    cookieOptions.domain = domain;
+    cookieOptions.secure = true;
+  }
+  
+  cookie.set(cookie_name, cookie_value, cookieOptions);
+};
+
+// Cross-Domain Cookie Functions
+export const setCrossDomainCookies = (): void => {
+  const today_date = new Date();
+  today_date.setDate(today_date.getDate() + 400);
+  const domain = import.meta.env.VITE_domainForCookie;
+  
+  const token = localStorage.getItem('token') || getCookie('token');
+  const apikey = localStorage.getItem('apikey') || getCookie('apikey');
+  const email = localStorage.getItem('email') || getCookie('email');
+  
+  if (domain && !window.location.hostname.includes('localhost')) {
+    // Set cookies with domain for cross-domain access
+    document.cookie = `token=${token}; expires=${today_date.toUTCString()}; domain=${domain}; path=/; Secure`;
+    document.cookie = `apikey=${apikey}; expires=${today_date.toUTCString()}; domain=${domain}; path=/; Secure`;
+    if (email) {
+      document.cookie = `email=${email}; expires=${today_date.toUTCString()}; domain=${domain}; path=/; Secure`;
+    }
+  } else {
+    // For localhost, use regular cookie setting
+    if (token) setCookie('token', token);
+    if (apikey) setCookie('apikey', apikey);
+    if (email) setCookie('email', email);
+  }
+};
+
+export const postCrossDomainMessage = (link: string, timeout: number = 1500): void => {
+  setCrossDomainCookies();
+  setTimeout(() => {
+    window.location.href = link;
+  }, timeout);
+};
+
+// Navigation helper to preserve query parameters
+export const navigateWithQueryParams = (path: string): string => {
+  const currentParams = new URLSearchParams(window.location.search);
+  return path + (currentParams.toString() ? '?' + currentParams.toString() : '');
+};
+
 // Password Strength Calculation Utility
 
 export interface PasswordStrengthOptions {

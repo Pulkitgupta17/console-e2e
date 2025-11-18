@@ -341,7 +341,7 @@ function SignupForm({
       const authLocalStorage = JSON.parse(localStorage.getItem("currentUser") || "null");
       if (authLocalStorage !== null) {
         toast.error("You are already logged in");
-        window.location.href = import.meta.env.VITE_MYACCOUNT_URL || "http://localhost:62921";
+        window.location.href = import.meta.env.VITE_MYACCOUNT_URL;
         return;
       }
 

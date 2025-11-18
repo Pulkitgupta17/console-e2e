@@ -25,7 +25,8 @@ import { useGoogleReCaptcha } from "react-google-recaptcha-v3"
 import { useAppDispatch } from "@/store/store"
 import { login as loginAction, type User } from "@/store/authSlice"
 import type { SignupData, OtpStatus } from "@/interfaces/signupInterface"
-import { MYACCOUNT_URL } from "@/constants/global.constants"
+import { NOTEBOOK_URL } from "@/constants/global.constants"
+import { postCrossDomainMessage, setSessionTimeCookie } from "@/services/commonMethods"
 
 interface OtpVerificationProps extends React.ComponentProps<"div"> {
   onBack?: () => void;
@@ -303,10 +304,9 @@ function OtpVerification({
         // Remove login progress flag before navigating
         localStorage.removeItem("logininprogress");
         
-        // Navigate to dashboard
-        setTimeout(() => {
-          window.location.href = MYACCOUNT_URL;
-        }, 500);
+        // Navigate to TIR Dashboard
+        setSessionTimeCookie();
+        postCrossDomainMessage(NOTEBOOK_URL, 0);
       } else {
         toast.error("Failed to retrieve authentication data");
       }

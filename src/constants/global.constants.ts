@@ -1,3 +1,4 @@
 export const BASE_URL = import.meta.env.VITE_baseURL;
-// MyAccount Dashboard URL
-export const MYACCOUNT_URL = import.meta.env.VITE_MYACCOUNT_URL || "http://localhost:62921";
+export const MYACCOUNT_URL = import.meta.env.VITE_MYACCOUNT_URL;
+export const MARKETPLACE_URL = import.meta.env.VITE_MARKETPLACE_URL;
+export const NOTEBOOK_URL = import.meta.env.VITE_NOTEBOOK_URL;

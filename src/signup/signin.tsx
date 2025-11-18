@@ -23,11 +23,11 @@ import CryptoJS from "crypto-js";
 import API from "@/axios";
 import TwoFactorAuth from "./twoFactorAuth";
 import GoogleAuthenticator from "./google-authenticator";
-import { getCookie, removeCookie, setCookie } from "@/services/commonMethods";
+import { getCookie, removeCookie, setCookie, setSessionTimeCookie, setSessionFor60Days, postCrossDomainMessage, navigateWithQueryParams } from "@/services/commonMethods";
 import { googleCallback, verifySocialEmail, loginGoogle, loginGithub, githubCallback, getCustomerValidationStatus, verifyGATotp, verifyGABackupCode, reportLostGAKey } from "@/services/signupService";
 import type { SocialUser } from "@/interfaces/signupInterface";
 import { Spinner } from '@/components/ui/shadcn-io/spinner';
-import { MYACCOUNT_URL } from "@/constants/global.constants";
+import { MYACCOUNT_URL, MARKETPLACE_URL, NOTEBOOK_URL } from "@/constants/global.constants";
 
 declare global {
   interface Window {
@@ -209,7 +209,7 @@ const LoginForm: React.FC<{
                 Don&apos;t have an account?{" "}
                 <button
                   type="button"
-                  onClick={() => navigate('/accounts/signup')}
+                  onClick={() => navigate(navigateWithQueryParams('/accounts/signup'))}
                   className="text-cyan-400 hover:text-cyan-300"
                 >
                   Sign up
@@ -341,7 +341,7 @@ function Signin({
             };
             localStorage.setItem('socialuser', JSON.stringify(user));
             toast.info("No account found. Please sign up first.");
-            navigate('/accounts/signup');
+            navigate(navigateWithQueryParams('/accounts/signup'));
             return;
           }
 
@@ -428,7 +428,7 @@ function Signin({
             localStorage.setItem('socialuser', JSON.stringify(user));
             localStorage.removeItem('github_oauth_state');
             toast.info("No account found. Please sign up first.");
-            navigate('/accounts/signup');
+            navigate(navigateWithQueryParams('/accounts/signup'));
             return;
           }
 
@@ -556,11 +556,6 @@ function Signin({
         // Set cookies temporarily so API calls can authenticate
         setCookie('token', token);
         setCookie('apikey', apiKey);
-        
-        // Store redirect flags
-        if (respData?.data?.is_default_dashboard_tir) {
-          setCookie('redirectToTIR', 'true');
-        }
         if (respData?.data?.contact_person_id) {
           setCookie('contact_person_id', respData.data.contact_person_id);
         }
@@ -607,11 +602,63 @@ function Signin({
       // Remove login progress flag before navigating
       localStorage.removeItem("logininprogress");
       
-      toast.success("Login successful!");
-      // Redirect to myaccount dashboard
-      window.location.href = MYACCOUNT_URL;
+      // Handle redirect based on conditions
+      handleSignInRedirect(rememberMe);
       return;
     }
+  };
+
+  // Handle redirect logic based on returnUrl, source cookie, and redirectToTIR
+  const handleSignInRedirect = (rememberMe: boolean = false) => {
+    // Set session cookies based on remember me
+    if (rememberMe) {
+      setSessionFor60Days();
+    } else {
+      setSessionTimeCookie();
+    }
+
+    // Check for returnUrl query parameter
+    const returnUrl = new URLSearchParams(window.location.search).get('returnUrl') || '/';
+    
+    if (returnUrl !== '/') {
+      // Redirect to myaccount with returnUrl
+      window.location.href = `${MYACCOUNT_URL}${returnUrl.startsWith('/') ? returnUrl : '/' + returnUrl}`;
+      return;
+    }
+
+    // Source URL mapping
+    const sourceUrlMap: Record<string, string> = {
+      marketplace: MARKETPLACE_URL,
+      gpu: NOTEBOOK_URL,
+    };
+
+    const source = getCookie('source');
+    const targetUrl = sourceUrlMap[source];
+
+    // Delete source cookie if it exists
+    if (source) {
+      removeCookie('source');
+    }
+
+    // Redirect to target URL if source is set
+    if (targetUrl) {
+      toast.info(source === 'marketplace' ? 'You will be redirected to Marketplace' : 'You will be redirected to TIR - AI Platform');
+      postCrossDomainMessage(targetUrl, 0);
+      return;
+    }
+
+    // Check for redirectToTIR flag
+    const redirectToTIR = localStorage.getItem('redirectToTIR');
+    if (redirectToTIR && NOTEBOOK_URL) {
+      localStorage.removeItem('redirectToTIR');
+      toast.info('You will be redirected to TIR - AI Platform');
+      postCrossDomainMessage(NOTEBOOK_URL, 0);
+      return;
+    }
+
+    // Default redirect to myaccount
+    toast.success("Login successful!");
+    window.location.href = MYACCOUNT_URL;
   };
 
   const handleRequestOTP = async (recaptcha: string) => {
@@ -721,9 +768,8 @@ function Signin({
         // Remove login progress flag before navigating
         localStorage.removeItem("logininprogress");
 
-        toast.success("Login successful!");
-        // Redirect to myaccount dashboard
-        window.location.href = MYACCOUNT_URL;
+        // Handle redirect based on conditions
+        handleSignInRedirect(rememberMe);
       } else {
         toast.error(res.data?.data?.message || "Invalid Code");
       }
@@ -887,7 +933,9 @@ function Signin({
             // Check if GA is enabled before dispatching loginAction
             // GA verification needs tokens to be stored temporarily, not in cookies yet
             const isGaEnabled = respData?.data?.is_ga_enabled;
-            setCookie('redirectToTIR', respData?.data?.is_default_dashboard_tir);
+            if (respData?.data?.is_default_dashboard_tir) {
+              localStorage.setItem('redirectToTIR', 'true');
+            }
             
             if (!isGaEnabled) {
               // Only dispatch loginAction if GA is not enabled
@@ -945,9 +993,8 @@ function Signin({
           // Remove login progress flag before navigating
           localStorage.removeItem("logininprogress");
           
-          toast.success("Login successful!");
-          // Redirect to myaccount dashboard
-          window.location.href = MYACCOUNT_URL;
+          // Handle redirect based on conditions
+          handleSignInRedirect(rememberMe);
         }
       }
     } catch (err: any) {
@@ -1017,6 +1064,11 @@ function Signin({
         }
         
         const respData = loginResponseData;
+        
+        // Store redirectToTIR flag if needed
+        if (respData?.data?.is_default_dashboard_tir) {
+          localStorage.setItem('redirectToTIR', 'true');
+        }
         
         const isExpired = respData?.data?.is_password_expired || response.data?.is_password_expired;
         localStorage.setItem("password_expired", isExpired ? "true" : "false");
@@ -1106,17 +1158,8 @@ function Signin({
           setGaRecaptchaToken("");
           localStorage.removeItem("logininprogress");
 
-          // Handle redirect
-          const returnUrl = new URLSearchParams(window.location.search).get('returnUrl') || '/';
-
-          if (returnUrl !== '/') {
-            navigate(returnUrl);
-          } 
-          else {
-            toast.success("Login successful!");
-            // Redirect to myaccount dashboard
-            window.location.href = MYACCOUNT_URL;
-          }
+          // Handle redirect based on conditions
+          handleSignInRedirect(rememberMe);
         }
       } else {
         const errorMsg = response?.errors || response?.data?.errors || "Invalid code. Please try again.";
