@@ -27,6 +27,7 @@ import { getCookie, removeCookie, setCookie } from "@/services/commonMethods";
 import { googleCallback, verifySocialEmail, loginGoogle, loginGithub, githubCallback, getCustomerValidationStatus, verifyGATotp, verifyGABackupCode, reportLostGAKey } from "@/services/signupService";
 import type { SocialUser } from "@/interfaces/signupInterface";
 import { Spinner } from '@/components/ui/shadcn-io/spinner';
+import { MYACCOUNT_URL } from "@/constants/global.constants";
 
 declare global {
   interface Window {
@@ -259,6 +260,9 @@ function Signin({
       removeCookie('yyy_xxx');
       localStorage.setItem('password_expired', 'false');
     }
+    if(!getCookie('token')){
+      localStorage.clear();
+    }
   }, []);
 
   // Redirect to dashboard if user is already logged in (check cookies)
@@ -276,7 +280,7 @@ function Signin({
         localStorage.removeItem("logininprogress");
       }
       else{
-        navigate('/');
+        window.location.href = MYACCOUNT_URL;
         return;
       }
     }
@@ -555,10 +559,10 @@ function Signin({
         
         // Store redirect flags
         if (respData?.data?.is_default_dashboard_tir) {
-          localStorage.setItem('redirectToTIR', 'true');
+          setCookie('redirectToTIR', 'true');
         }
         if (respData?.data?.contact_person_id) {
-          localStorage.setItem('contact_person_id', respData.data.contact_person_id);
+          setCookie('contact_person_id', respData.data.contact_person_id);
         }
         
         if (executeRecaptcha) {
@@ -604,7 +608,8 @@ function Signin({
       localStorage.removeItem("logininprogress");
       
       toast.success("Login successful!");
-      navigate("/");
+      // Redirect to myaccount dashboard
+      window.location.href = MYACCOUNT_URL;
       return;
     }
   };
@@ -717,7 +722,8 @@ function Signin({
         localStorage.removeItem("logininprogress");
 
         toast.success("Login successful!");
-        navigate("/");
+        // Redirect to myaccount dashboard
+        window.location.href = MYACCOUNT_URL;
       } else {
         toast.error(res.data?.data?.message || "Invalid Code");
       }
@@ -826,7 +832,7 @@ function Signin({
         localStorage.removeItem("logininprogress");
 
         toast.success("Login successful!");
-        navigate("/");
+        window.location.href = MYACCOUNT_URL;
       } else {
         const errorMessage = res.data?.data?.message || "Verification failed! Please try again";
         toast.error(errorMessage);
@@ -881,6 +887,7 @@ function Signin({
             // Check if GA is enabled before dispatching loginAction
             // GA verification needs tokens to be stored temporarily, not in cookies yet
             const isGaEnabled = respData?.data?.is_ga_enabled;
+            setCookie('redirectToTIR', respData?.data?.is_default_dashboard_tir);
             
             if (!isGaEnabled) {
               // Only dispatch loginAction if GA is not enabled
@@ -939,7 +946,8 @@ function Signin({
           localStorage.removeItem("logininprogress");
           
           toast.success("Login successful!");
-          navigate("/");
+          // Redirect to myaccount dashboard
+          window.location.href = MYACCOUNT_URL;
         }
       }
     } catch (err: any) {
@@ -1100,25 +1108,14 @@ function Signin({
 
           // Handle redirect
           const returnUrl = new URLSearchParams(window.location.search).get('returnUrl') || '/';
-          const source = getCookie('source');
 
           if (returnUrl !== '/') {
             navigate(returnUrl);
-          } else if (source === 'marketplace') {
-            removeCookie('source');
-            // Handle cross-domain message if needed
-            navigate('/');
-          } else if (source === 'gpu') {
-            removeCookie('source');
-            // Handle cross-domain message if needed
-            navigate('/');
-          } else if (localStorage.getItem('redirectToTIR')) {
-            localStorage.removeItem('redirectToTIR');
-            // Handle cross-domain message if needed
-            navigate('/');
-          } else {
+          } 
+          else {
             toast.success("Login successful!");
-            navigate("/");
+            // Redirect to myaccount dashboard
+            window.location.href = MYACCOUNT_URL;
           }
         }
       } else {

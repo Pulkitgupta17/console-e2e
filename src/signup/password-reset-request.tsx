@@ -18,6 +18,7 @@ import { Send, Mail, X } from "lucide-react"
 import { GoogleReCaptchaProvider, useGoogleReCaptcha } from "react-google-recaptcha-v3"
 import { getCookie } from "@/services/commonMethods"
 import { requestPasswordReset } from "@/services/signupService"
+import { MYACCOUNT_URL } from "@/constants/global.constants"
 
 declare global {
   interface Window {
@@ -63,7 +64,8 @@ function PasswordResetRequestForm({ className }: PasswordResetRequestFormProps) 
     const apikey = getCookie('apikey');
 
     if (token && apikey) {
-      navigate('/');
+      // navigate('/');
+      window.location.href = MYACCOUNT_URL;
     }
   }, [navigate]);
 

@@ -25,6 +25,7 @@ import { useGoogleReCaptcha } from "react-google-recaptcha-v3"
 import { useAppDispatch } from "@/store/store"
 import { login as loginAction, type User } from "@/store/authSlice"
 import type { SignupData, OtpStatus } from "@/interfaces/signupInterface"
+import { MYACCOUNT_URL } from "@/constants/global.constants"
 
 interface OtpVerificationProps extends React.ComponentProps<"div"> {
   onBack?: () => void;
@@ -304,7 +305,7 @@ function OtpVerification({
         
         // Navigate to dashboard
         setTimeout(() => {
-          navigate("/");
+          window.location.href = MYACCOUNT_URL;
         }, 500);
       } else {
         toast.error("Failed to retrieve authentication data");

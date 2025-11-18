@@ -24,6 +24,7 @@ import type { SignupData, OtpStatus, SocialUser } from "@/interfaces/signupInter
 import { getCookie, removeCookie, calculatePasswordStrength } from "@/services/commonMethods";
 import CompleteSocialSignupForm from "./complete-social-signup";
 import { Spinner } from '@/components/ui/shadcn-io/spinner';
+import { MYACCOUNT_URL } from "@/constants/global.constants"
 
 // Declare Google Identity Services types
 declare global {
@@ -85,7 +86,8 @@ function SignupForm({
         localStorage.removeItem("logininprogress");
       }
       else{
-        navigate('/');
+        // navigate('/');
+        window.location.href = MYACCOUNT_URL;
         return;
       }
     }
@@ -339,7 +341,7 @@ function SignupForm({
       const authLocalStorage = JSON.parse(localStorage.getItem("currentUser") || "null");
       if (authLocalStorage !== null) {
         toast.error("You are already logged in");
-        navigate("/");
+        window.location.href = import.meta.env.VITE_MYACCOUNT_URL || "http://localhost:62921";
         return;
       }
 
