@@ -26,7 +26,7 @@ import { useAppDispatch } from "@/store/store"
 import { login as loginAction, type User } from "@/store/authSlice"
 import type { SignupData, OtpStatus } from "@/interfaces/signupInterface"
 import { NOTEBOOK_URL } from "@/constants/global.constants"
-import { postCrossDomainMessage, setSessionTimeCookie } from "@/services/commonMethods"
+import { postCrossDomainMessage, setSessionTimeCookie, processOtpPaste, createOtpPasteHandler, createOtpKeyDownHandler } from "@/services/commonMethods"
 
 interface OtpVerificationProps extends React.ComponentProps<"div"> {
   onBack?: () => void;
@@ -54,6 +54,8 @@ function OtpVerification({
   const [canResendEmail, setCanResendEmail] = useState(false);
   const [showChangeContact, setShowChangeContact] = useState(false);
   const [termsAccepted, setTermsAccepted] = useState(false);
+  const [changeContactType, setChangeContactType] = useState<'mobile' | 'email'>('mobile');
+  const [currentSignupData, setCurrentSignupData] = useState<SignupData>(signupData);
 
   // Mobile OTP Timer countdown
   useEffect(() => {
@@ -79,51 +81,84 @@ function OtpVerification({
     }
   }, [emailTimer]);
 
-  const handleOtpChange = (
-    index: number, 
-    value: string, 
-    values: string[],
-    setter: React.Dispatch<React.SetStateAction<string[]>>,
-    prefix: string
-  ) => {
-    if (value.length > 1) return; // Only allow single digit
-    const newValues = [...values];
+  const processMobilePasteData = (pastedData: string) => {
+    processOtpPaste({
+      pastedData,
+      otpLength: 6,
+      setOtpValues: setMobileOtpValues,
+      inputIdPrefix: 'mobile-otp',
+    })
+  }
+
+  const processEmailPasteData = (pastedData: string) => {
+    processOtpPaste({
+      pastedData,
+      otpLength: 6,
+      setOtpValues: setEmailOtpValues,
+      inputIdPrefix: 'email-otp',
+    })
+  }
+
+  const handleMobileOtpChange = (index: number, value: string) => {
+    // If value length is greater than 1, it's likely a paste operation
+    if (value.length > 1) {
+      processMobilePasteData(value)
+      return
+    }
+    
+    // For single character input, only allow numeric characters
+    if (value && !/^\d$/.test(value)) {
+      return
+    }
+    
+    const newValues = [...mobileOtpValues];
     newValues[index] = value;
-    setter(newValues);
+    setMobileOtpValues(newValues);
     
     // Auto-focus next input
     if (value && index < 5) {
-      const nextInput = document.getElementById(`${prefix}-${index + 1}`);
+      const nextInput = document.getElementById(`mobile-otp-${index + 1}`);
       nextInput?.focus();
     }
   };
 
-  const handleKeyDown = (
-    e: React.KeyboardEvent<HTMLInputElement>,
-    index: number,
-    values: string[],
-    setter: React.Dispatch<React.SetStateAction<string[]>>,
-    prefix: string
-  ) => {
-    if (e.key === "Backspace") {
-      // If current input is empty, move to previous input
-      if (!values[index] && index > 0) {
-        const prevInput = document.getElementById(`${prefix}-${index - 1}`);
-        prevInput?.focus();
-      } else {
-        // Clear current input
-        const newValues = [...values];
-        newValues[index] = '';
-        setter(newValues);
-      }
-      return;
+  const handleEmailOtpChange = (index: number, value: string) => {
+    // If value length is greater than 1, it's likely a paste operation
+    if (value.length > 1) {
+      processEmailPasteData(value)
+      return
     }
-
-    // Validate only numbers
-    if (!/[0-9]/.test(e.key) && e.key !== "Tab" && e.key !== "ArrowLeft" && e.key !== "ArrowRight") {
-      e.preventDefault();
+    
+    // For single character input, only allow numeric characters
+    if (value && !/^\d$/.test(value)) {
+      return
+    }
+    
+    const newValues = [...emailOtpValues];
+    newValues[index] = value;
+    setEmailOtpValues(newValues);
+    
+    // Auto-focus next input
+    if (value && index < 5) {
+      const nextInput = document.getElementById(`email-otp-${index + 1}`);
+      nextInput?.focus();
     }
   };
+
+  const handleMobilePaste = createOtpPasteHandler(processMobilePasteData)
+  const handleEmailPaste = createOtpPasteHandler(processEmailPasteData)
+
+  const handleMobileKeyDown = createOtpKeyDownHandler({
+    otpValues: mobileOtpValues,
+    setOtpValues: setMobileOtpValues,
+    inputIdPrefix: 'mobile-otp',
+  })
+
+  const handleEmailKeyDown = createOtpKeyDownHandler({
+    otpValues: emailOtpValues,
+    setOtpValues: setEmailOtpValues,
+    inputIdPrefix: 'email-otp',
+  })
 
   const handleResendMobile = async (type: 'sms' | 'voice' = 'sms') => {
     if (!executeRecaptcha) {
@@ -135,8 +170,8 @@ function OtpVerification({
       const recaptchaToken = await executeRecaptcha("resend_otp");
 
       const payload: any = {
-        email: signupData.email,
-        mobile: signupData.phone,
+        email: currentSignupData.email,
+        mobile: currentSignupData.phone,
         recaptcha: recaptchaToken,
         version: "v3",
       };
@@ -160,9 +195,9 @@ function OtpVerification({
     try {
       // Resend email OTP
       await sendOtpEmail({
-        email: signupData.email,
-        mobile: signupData.phone,
-        full_name: signupData.name,
+        email: currentSignupData.email,
+        mobile: currentSignupData.phone,
+        full_name: currentSignupData.name,
         type: "signup",
         otp_msg: otpStatus.message,
         otp_status: otpStatus,
@@ -197,8 +232,8 @@ function OtpVerification({
     try {
       // Step 3: Verify OTP
       const verifyResponse = await verifyOtp({
-        email: signupData.email,
-        mobile: signupData.phone,
+        email: currentSignupData.email,
+        mobile: currentSignupData.phone,
         otp: mobileOtp,
         otpemail: emailOtp,
       });
@@ -227,8 +262,8 @@ function OtpVerification({
       }
 
       // Generate expected hashes
-      const expectedMobileHash = generateMobileOtpHash(signupData.phone, signupData.email);
-      const expectedEmailHash = generateEmailOtpHash(signupData.email);
+      const expectedMobileHash = generateMobileOtpHash(currentSignupData.phone, currentSignupData.email);
+      const expectedEmailHash = generateEmailOtpHash(currentSignupData.email);
 
       // Get actual hashes from response
       const actualMobileHash = verifyData.mobile_otp_verified_code;
@@ -250,10 +285,10 @@ function OtpVerification({
       const signupResponse = await signupFirst({
         first_name,
         last_name,
-        password1: signupData.password,
-        password2: signupData.password,
-        email: signupData.email,
-        phone: signupData.phone,
+        password1: currentSignupData.password,
+        password2: currentSignupData.password,
+        email: currentSignupData.email,
+        phone: currentSignupData.phone,
         mobile_otp_verified_code: actualMobileHash,
         email_otp_verified_code: actualEmailHash,
         emailis_verify: true,
@@ -275,12 +310,12 @@ function OtpVerification({
           username: userData?.data?.user?.username || first_name,
           first_name: first_name,
           last_name: last_name,
-          phone: signupData.phone,
+          phone: currentSignupData.phone,
           customer_country: userData?.data?.user?.customer_country || "",
           crn: userData?.data?.user?.crn || "",
           location: userData.user?.location || "",
           projectId: userData?.data?.project_id || "",
-          email: signupData.email,
+          email: currentSignupData.email,
         };
 
         // Dispatch login action (this will set cookies automatically)
@@ -327,9 +362,31 @@ function OtpVerification({
     setShowChangeContact(false);
   };
 
+  const handleContactUpdate = (updatedData: SignupData) => {
+    setCurrentSignupData(updatedData);
+    // Reset OTP values
+    setMobileOtpValues(['', '', '', '', '', '']);
+    setEmailOtpValues(['', '', '', '', '', '']);
+    // Reset timers
+    setMobileTimer(60);
+    setEmailTimer(60);
+    setCanResendMobile(false);
+    setCanResendEmail(false);
+    // Go back to OTP verification
+    setShowChangeContact(false);
+  };
+
   // Show change contact form if state is true
   if (showChangeContact) {
-    return <ChangeContactInformation onBack={handleBackFromContactChange} />;
+    return (
+      <ChangeContactInformation 
+        onBack={handleBackFromContactChange} 
+        signupData={currentSignupData} 
+        changeContactType={changeContactType}
+        otpStatus={otpStatus}
+        onUpdate={handleContactUpdate}
+      />
+    );
   }
 
   return (
@@ -360,7 +417,7 @@ function OtpVerification({
             <div className="space-y-4">
               <div className="space-y-2">
                 <h3 className="text-lg font-semibold text-white">Verification</h3>
-                <p className="text-sm text-gray-400">SMS code sent on {signupData.phone}</p>
+                <p className="text-sm text-gray-400">SMS code sent on {currentSignupData.phone}</p>
               </div>
               
               <div className="flex gap-3 items-center">
@@ -371,10 +428,10 @@ function OtpVerification({
                       id={`mobile-otp-${index}`}
                       type="text"
                       inputMode="numeric"
-                      maxLength={1}
                       value={value}
-                      onChange={(e) => handleOtpChange(index, e.target.value, mobileOtpValues, setMobileOtpValues, 'mobile-otp')}
-                      onKeyDown={(e) => handleKeyDown(e, index, mobileOtpValues, setMobileOtpValues, 'mobile-otp')}
+                      onChange={(e) => handleMobileOtpChange(index, e.target.value)}
+                      onKeyDown={(e) => handleMobileKeyDown(e, index)}
+                      onPaste={handleMobilePaste}
                       variant="primary"
                       size="otp"
                       className="text-center text-lg font-semibold"
@@ -403,7 +460,7 @@ function OtpVerification({
                 <button 
                   type="button" 
                   className="text-cyan-400 hover:text-cyan-300"
-                  onClick={() => setShowChangeContact(true)}
+                  onClick={() => {setShowChangeContact(true); setChangeContactType('mobile')}}
                 >
                   Change phone number
                 </button>
@@ -426,7 +483,7 @@ function OtpVerification({
             {/* Email Verification */}
             <div className="space-y-4">
               <div className="space-y-2">
-                <p className="text-sm text-gray-400">Email code sent on {signupData.email}</p>
+                <p className="text-sm text-gray-400">Email code sent on {currentSignupData.email}</p>
               </div>
               
               <div className="flex gap-3 items-center">
@@ -437,10 +494,10 @@ function OtpVerification({
                       id={`email-otp-${index}`}
                       type="text"
                       inputMode="numeric"
-                      maxLength={1}
                       value={value}
-                      onChange={(e) => handleOtpChange(index, e.target.value, emailOtpValues, setEmailOtpValues, 'email-otp')}
-                      onKeyDown={(e) => handleKeyDown(e, index, emailOtpValues, setEmailOtpValues, 'email-otp')}
+                      onChange={(e) => handleEmailOtpChange(index, e.target.value)}
+                      onKeyDown={(e) => handleEmailKeyDown(e, index)}
+                      onPaste={handleEmailPaste}
                       variant="primary"
                       size="otp"
                       className="text-center text-lg font-semibold"
@@ -469,7 +526,7 @@ function OtpVerification({
                 <button 
                   type="button" 
                   className="text-cyan-400 hover:text-cyan-300"
-                  onClick={() => setShowChangeContact(true)}
+                  onClick={() => {setShowChangeContact(true); setChangeContactType('email')}}
                 >
                   Change email
                 </button>

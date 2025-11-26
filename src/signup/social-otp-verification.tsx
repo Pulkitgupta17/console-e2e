@@ -19,7 +19,7 @@ import { useAppDispatch } from "@/store/store"
 import { login as loginAction, type User } from "@/store/authSlice"
 import type { SocialUser, OtpStatus } from "@/interfaces/signupInterface"
 import { NOTEBOOK_URL } from "@/constants/global.constants"
-import { postCrossDomainMessage, setSessionTimeCookie } from "@/services/commonMethods"
+import { postCrossDomainMessage, setSessionTimeCookie, processOtpPaste, createOtpPasteHandler, createOtpKeyDownHandler } from "@/services/commonMethods"
 
 interface SocialOtpVerificationProps extends React.ComponentProps<"div"> {
   onBack?: () => void;
@@ -60,8 +60,27 @@ function SocialOtpVerification({
     }
   }, [mobileTimer]);
 
+  const processPasteData = (pastedData: string) => {
+    processOtpPaste({
+      pastedData,
+      otpLength: 6,
+      setOtpValues: setMobileOtpValues,
+      inputIdPrefix: 'mobile-otp',
+    })
+  }
+
   const handleOtpChange = (index: number, value: string) => {
-    if (value.length > 1) return;
+    // If value length is greater than 1, it's likely a paste operation
+    if (value.length > 1) {
+      processPasteData(value)
+      return
+    }
+    
+    // For single character input, only allow numeric characters
+    if (value && !/^\d$/.test(value)) {
+      return
+    }
+    
     const newValues = [...mobileOtpValues];
     newValues[index] = value;
     setMobileOtpValues(newValues);
@@ -72,27 +91,13 @@ function SocialOtpVerification({
     }
   };
 
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>, index: number) => {
+  const handlePaste = createOtpPasteHandler(processPasteData)
 
-    if (e.key === "Backspace") {
-      // If current input is empty, move to previous input
-      if (!mobileOtpValues[index] && index > 0) {
-        const prevInput = document.getElementById(`mobile-otp-${index - 1}`);
-        prevInput?.focus();
-      } else {
-        // Clear current input
-        const newValues = [...mobileOtpValues];
-        newValues[index] = '';
-        setMobileOtpValues(newValues);
-      }
-      return;
-    }
-
-    // Validate only numbers
-    if (!/[0-9]/.test(e.key) && e.key !== "Tab" && e.key !== "ArrowLeft" && e.key !== "ArrowRight") {
-      e.preventDefault();
-    }
-  };
+  const handleKeyDown = createOtpKeyDownHandler({
+    otpValues: mobileOtpValues,
+    setOtpValues: setMobileOtpValues,
+    inputIdPrefix: 'mobile-otp',
+  })
 
   const handleResendMobile = async (type: 'sms' | 'voice' = 'sms') => {
     if (!executeRecaptcha) {
@@ -315,10 +320,10 @@ function SocialOtpVerification({
                       id={`mobile-otp-${index}`}
                       type="text"
                       inputMode="numeric"
-                      maxLength={1}
                       value={value}
                       onChange={(e) => handleOtpChange(index, e.target.value)}
                       onKeyDown={(e) => handleKeyDown(e, index)}
+                      onPaste={handlePaste}
                       variant="primary"
                       size="otp"
                       className="text-center text-lg font-semibold"

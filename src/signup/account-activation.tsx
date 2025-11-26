@@ -206,6 +206,7 @@ function AccountActivationForm({ token, customerData, onOtpSent }: AccountActiva
         <PhoneInput
           country={'in'}
           value={phoneNumber}
+          countryCodeEditable={false}
           onChange={(val) => {
             setPhoneNumber(val);
             const formatted = val ? (val.startsWith("+") ? val : `+${val}`) : "";

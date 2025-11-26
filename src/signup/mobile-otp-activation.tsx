@@ -14,6 +14,7 @@ import { toast } from "sonner"
 import { verifyPhoneOtp, finalizeContactPersonActivation, resendOtpForActivation } from "@/services/signupService"
 import { useGoogleReCaptcha } from "react-google-recaptcha-v3"
 import type { VerifyContactPersonResponse } from "@/interfaces/signupInterface"
+import { processOtpPaste, createOtpPasteHandler, createOtpKeyDownHandler } from "@/services/commonMethods"
 
 interface MobileOtpActivationProps {
   payload: {
@@ -60,8 +61,27 @@ function MobileOtpActivation({
     }
   }, [timer]);
 
+  const processPasteData = (pastedData: string) => {
+    processOtpPaste({
+      pastedData,
+      otpLength: 6,
+      setOtpValues,
+      inputIdPrefix: 'otp',
+    })
+  }
+
   const handleOtpChange = (index: number, value: string) => {
-    if (value.length > 1) return; // Only allow single digit
+    // If value length is greater than 1, it's likely a paste operation
+    if (value.length > 1) {
+      processPasteData(value)
+      return
+    }
+    
+    // For single character input, only allow numeric characters
+    if (value && !/^\d$/.test(value)) {
+      return
+    }
+    
     const newValues = [...otpValues];
     newValues[index] = value;
     setOtpValues(newValues);
@@ -72,23 +92,13 @@ function MobileOtpActivation({
     }
   };
 
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>, index: number) => {
-    if (e.key === "Backspace") {
-      if (!otpValues[index] && index > 0) {
-        const prevInput = document.getElementById(`otp-${index - 1}`);
-        prevInput?.focus();
-      } else {
-        const newValues = [...otpValues];
-        newValues[index] = '';
-        setOtpValues(newValues);
-      }
-      return;
-    }
+  const handlePaste = createOtpPasteHandler(processPasteData)
 
-    if (!/[0-9]/.test(e.key) && e.key !== "Tab" && e.key !== "ArrowLeft" && e.key !== "ArrowRight") {
-      e.preventDefault();
-    }
-  };
+  const handleKeyDown = createOtpKeyDownHandler({
+    otpValues,
+    setOtpValues,
+    inputIdPrefix: 'otp',
+  })
 
   const handleResend = async (type: 'sms' | 'voice' = 'sms') => {
     if (timer > 0 || !executeRecaptcha) return;
@@ -231,10 +241,10 @@ const maskPhoneNumber = (phone: string): string => {
                     id={`otp-${index}`}
                     type="text"
                     inputMode="numeric"
-                    maxLength={1}
                     value={value}
                     onChange={(e) => handleOtpChange(index, e.target.value)}
                     onKeyDown={(e) => handleKeyDown(e, index)}
+                    onPaste={handlePaste}
                     variant="primary"
                     size="otp"
                     className="text-center text-lg font-semibold"

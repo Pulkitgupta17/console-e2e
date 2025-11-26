@@ -9,6 +9,11 @@ import {
 import { Input } from "@/components/ui/input"
 import { cn } from "@/lib/utils"
 import { useState } from "react"
+import {
+  processOtpPaste,
+  createOtpPasteHandler,
+  createOtpKeyDownHandler,
+} from "@/services/commonMethods"
 
 interface GoogleAuthenticatorProps {
   onSubmit?: (code: string, isBackupCode: boolean) => Promise<void>;
@@ -35,8 +40,27 @@ function GoogleAuthenticator({
   const [backupCodeError, setBackupCodeError] = useState<string | null>(null)
   const [lostKeyLoading, setLostKeyLoading] = useState(false)
 
+  const processPasteData = (pastedData: string) => {
+    processOtpPaste({
+      pastedData,
+      otpLength: 6,
+      setOtpValues,
+      inputIdPrefix: 'ga-otp',
+    })
+  }
+
   const handleOtpChange = (index: number, value: string) => {
-    if (value.length > 1) return
+    // If value length is greater than 1, it's likely a paste operation
+    if (value.length > 1) {
+      processPasteData(value)
+      return
+    }
+    
+    // For single character input, only allow numeric characters
+    if (value && !/^\d$/.test(value)) {
+      return
+    }
+    
     const newValues = [...otpValues]
     newValues[index] = value
     setOtpValues(newValues)
@@ -48,26 +72,13 @@ function GoogleAuthenticator({
     }
   }
 
-  const addInputValidation = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (!/[0-9]/.test(e.key) && e.key !== "Backspace" && e.key !== "Tab" && e.key !== "ArrowLeft" && e.key !== "ArrowRight") {
-      e.preventDefault();
-    }
-  }
+  const handlePaste = createOtpPasteHandler(processPasteData)
 
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>, index: number) => {
-    if (e.key === "Backspace") {
-      if (!otpValues[index] && index > 0) {
-        const prevInput = document.getElementById(`ga-otp-${index - 1}`)
-        prevInput?.focus()
-      } else {
-        const newValues = [...otpValues]
-        newValues[index] = ''
-        setOtpValues(newValues)
-      }
-      return
-    }
-    addInputValidation(e)
-  }
+  const handleKeyDown = createOtpKeyDownHandler({
+    otpValues,
+    setOtpValues,
+    inputIdPrefix: 'ga-otp',
+  })
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -162,10 +173,10 @@ function GoogleAuthenticator({
                         id={`ga-otp-${index}`}
                         type="text"
                         inputMode="numeric"
-                        maxLength={1}
                         value={value}
                         onChange={(e) => handleOtpChange(index, e.target.value)}
                         onKeyDown={(e) => handleKeyDown(e, index)}
+                        onPaste={handlePaste}
                         variant="primary"
                         size="otp"
                         className="text-center text-lg font-semibold"

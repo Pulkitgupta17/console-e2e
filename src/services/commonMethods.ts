@@ -234,3 +234,128 @@ export const calculatePasswordStrength = (
     checks: checks as any,
   };
 };
+
+// OTP Paste Handling Utilities
+
+export interface ProcessOtpPasteOptions {
+  pastedData: string;
+  otpLength: number;
+  setOtpValues: (values: string[]) => void;
+  inputIdPrefix: string;
+}
+
+/**
+ * Processes pasted OTP data and fills the OTP input fields
+ * Only accepts exactly the specified OTP length
+ */
+export const processOtpPaste = ({
+  pastedData,
+  otpLength,
+  setOtpValues,
+  inputIdPrefix,
+}: ProcessOtpPasteOptions): void => {
+  // Extract only numeric characters
+  const numericData = pastedData.replace(/\D/g, '');
+  
+  // Only process if exactly the required length
+  if (numericData.length === otpLength) {
+    const newValues: string[] = [];
+    // Fill starting from the first input box (index 0)
+    for (let i = 0; i < otpLength; i++) {
+      newValues[i] = numericData[i];
+    }
+    setOtpValues(newValues);
+    
+    // Focus the last input since all are filled
+    setTimeout(() => {
+      const lastInput = document.getElementById(`${inputIdPrefix}-${otpLength - 1}`);
+      lastInput?.focus();
+    }, 0);
+  }
+};
+
+/**
+ * Creates a paste event handler for OTP inputs
+ */
+export const createOtpPasteHandler = (
+  processPaste: (pastedData: string) => void
+): ((e: React.ClipboardEvent<HTMLInputElement>) => void) => {
+  return (e: React.ClipboardEvent<HTMLInputElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const pastedData = e.clipboardData.getData('text');
+    processPaste(pastedData);
+  };
+};
+
+/**
+ * Creates an input validation handler that allows clipboard shortcuts
+ */
+export const createOtpInputValidation = (): ((e: React.KeyboardEvent<HTMLInputElement>) => void) => {
+  return (e: React.KeyboardEvent<HTMLInputElement>) => {
+    // Allow paste shortcuts (Command/Ctrl + V)
+    if ((e.metaKey || e.ctrlKey) && e.key === 'v') {
+      return;
+    }
+    // Allow copy shortcuts (Command/Ctrl + C)
+    if ((e.metaKey || e.ctrlKey) && e.key === 'c') {
+      return;
+    }
+    // Allow cut shortcuts (Command/Ctrl + X)
+    if ((e.metaKey || e.ctrlKey) && e.key === 'x') {
+      return;
+    }
+    // Allow select all shortcuts (Command/Ctrl + A)
+    if ((e.metaKey || e.ctrlKey) && e.key === 'a') {
+      return;
+    }
+    
+    if (!/[0-9]/.test(e.key) && e.key !== "Backspace" && e.key !== "Tab" && e.key !== "ArrowLeft" && e.key !== "ArrowRight" && e.key !== "Delete") {
+      e.preventDefault();
+    }
+  };
+};
+
+export interface CreateOtpKeyDownHandlerOptions {
+  otpValues: string[];
+  setOtpValues: (values: string[]) => void;
+  inputIdPrefix: string;
+  onBackspace?: (index: number, currentValues: string[]) => void;
+}
+
+/**
+ * Creates a keydown event handler for OTP inputs with paste support
+ */
+export const createOtpKeyDownHandler = ({
+  otpValues,
+  setOtpValues,
+  inputIdPrefix,
+  onBackspace,
+}: CreateOtpKeyDownHandlerOptions): ((e: React.KeyboardEvent<HTMLInputElement>, index: number) => void) => {
+  const inputValidation = createOtpInputValidation();
+  
+  return (e: React.KeyboardEvent<HTMLInputElement>, index: number) => {
+    // Allow paste shortcuts to work
+    if ((e.metaKey || e.ctrlKey) && e.key === 'v') {
+      return; // Let the paste event handle it
+    }
+    
+    if (e.key === "Backspace") {
+      if (onBackspace) {
+        onBackspace(index, otpValues);
+      } else {
+        // Default backspace behavior
+        if (!otpValues[index] && index > 0) {
+          const prevInput = document.getElementById(`${inputIdPrefix}-${index - 1}`);
+          prevInput?.focus();
+        } else {
+          const newValues = [...otpValues];
+          newValues[index] = '';
+          setOtpValues(newValues);
+        }
+      }
+      return;
+    }
+    inputValidation(e);
+  };
+};

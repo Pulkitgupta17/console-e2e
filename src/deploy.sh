@@ -1,5 +1,16 @@
 #List of SERVER IPs
-stage=172.16.235.7
+testServer=172.16.235.50
+
+groot=172.16.230.94
+thor=172.16.231.19
+loki=172.16.232.23
+hulk=172.16.233.28
+thunder=172.16.234.76
+stage=172.16.235.19
+preprod=172.16.236.18
+hercules=172.16.238.26
+spider=172.16.237.30
+mercury=172.16.240.17
 
 option="${1}"
 
@@ -7,6 +18,9 @@ getServerIp() {
     if [ $option == 'stage' ]
     then
         echo $stage
+    elif [ $option == 'test' ]
+    then
+        echo $testServer
     fi
 }
 

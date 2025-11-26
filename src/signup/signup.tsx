@@ -34,9 +34,7 @@ declare global {
 }
 
 const schema = z.object({
-  name: z.string().min(1, { message: "Name is required" }).refine((val: string) => val.trim().includes(" "), {
-    message: "Please enter your full name.",
-  }),
+  name: z.string().min(1, { message: "Name is required" }),
   email: z.string().email({ message: "Invalid email address" }),
   password: z.string().min(8, { message: "Password must be at least 8 characters long" }),
 });
@@ -479,7 +477,7 @@ function SignupForm({
                 <Input
                   id="name"
                   type="text"
-                  placeholder="Enter your full name"
+                  placeholder="Enter your name"
                   variant="primary"
                   size="xl"
                   required
@@ -496,6 +494,7 @@ function SignupForm({
                 <PhoneInput
                   country={'in'}
                   value={phoneNumber}
+                  countryCodeEditable={false}
                   onChange={(value) => setPhoneNumber(value)}
                   placeholder="Mobile No."
                   inputProps={{

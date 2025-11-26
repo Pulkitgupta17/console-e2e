@@ -274,7 +274,6 @@ function PasswordResetRequestForm({ className }: PasswordResetRequestFormProps) 
                 />
                 {errors.email && (
                   <p className="text-red-400 text-xs mt-1 flex items-center gap-1">
-                    <X className="h-3 w-3" />
                     {errors.email.message}
                   </p>
                 )}
