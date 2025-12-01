@@ -22,6 +22,7 @@ import { toast } from "sonner";
 import { getCookie, calculatePasswordStrength } from "@/services/commonMethods";
 import MobileOtpActivation from "@/signup/mobile-otp-activation";
 import type { VerifyContactPersonResponse, SendOtpPhonePayload } from "@/interfaces/signupInterface";
+import { MYACCOUNT_URL } from "@/constants/global.constants"
 
 const schema = z.object({
   firstName: z.string()
@@ -205,6 +206,7 @@ function AccountActivationForm({ token, customerData, onOtpSent }: AccountActiva
         <PhoneInput
           country={'in'}
           value={phoneNumber}
+          countryCodeEditable={false}
           onChange={(val) => {
             setPhoneNumber(val);
             const formatted = val ? (val.startsWith("+") ? val : `+${val}`) : "";
@@ -351,7 +353,8 @@ function AccountActivation({
     // Redirect if already logged in
     const token = getCookie('token');
     if (token) {
-      navigate('/');
+      // navigate('/');
+      window.location.href = MYACCOUNT_URL;
       return;
     }
   }, [navigate]);

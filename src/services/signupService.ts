@@ -282,3 +282,22 @@ export const reportLostGAKey = async () => {
   );
   return response.data;
 };
+
+// SSO Login APIs
+
+export interface SSOLoginRequestPayload {
+  return_to: string;
+}
+
+export interface SSOLoginResponse {
+  redirect_url: string;
+}
+
+// Request SSO login URL
+export const requestSSOLogin = async (organizationId: string, returnTo: string): Promise<SSOLoginResponse> => {
+  const response = await PublicAPI.post(
+    `sso/organizations/${organizationId}/sso-login/`,
+    { return_to: returnTo }
+  );
+  return response.data;
+};

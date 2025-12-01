@@ -24,6 +24,7 @@ import type { SignupData, OtpStatus, SocialUser } from "@/interfaces/signupInter
 import { getCookie, removeCookie, calculatePasswordStrength } from "@/services/commonMethods";
 import CompleteSocialSignupForm from "./complete-social-signup";
 import { Spinner } from '@/components/ui/shadcn-io/spinner';
+import { MYACCOUNT_URL } from "@/constants/global.constants"
 
 // Declare Google Identity Services types
 declare global {
@@ -33,9 +34,7 @@ declare global {
 }
 
 const schema = z.object({
-  name: z.string().min(1, { message: "Name is required" }).refine((val: string) => val.trim().includes(" "), {
-    message: "Please enter your full name.",
-  }),
+  name: z.string().min(1, { message: "Name is required" }),
   email: z.string().email({ message: "Invalid email address" }),
   password: z.string().min(8, { message: "Password must be at least 8 characters long" }),
 });
@@ -85,7 +84,8 @@ function SignupForm({
         localStorage.removeItem("logininprogress");
       }
       else{
-        navigate('/');
+        // navigate('/');
+        window.location.href = MYACCOUNT_URL;
         return;
       }
     }
@@ -339,7 +339,7 @@ function SignupForm({
       const authLocalStorage = JSON.parse(localStorage.getItem("currentUser") || "null");
       if (authLocalStorage !== null) {
         toast.error("You are already logged in");
-        navigate("/");
+        window.location.href = import.meta.env.VITE_MYACCOUNT_URL;
         return;
       }
 
@@ -477,7 +477,7 @@ function SignupForm({
                 <Input
                   id="name"
                   type="text"
-                  placeholder="Enter your full name"
+                  placeholder="Enter your name"
                   variant="primary"
                   size="xl"
                   required
@@ -494,6 +494,7 @@ function SignupForm({
                 <PhoneInput
                   country={'in'}
                   value={phoneNumber}
+                  countryCodeEditable={false}
                   onChange={(value) => setPhoneNumber(value)}
                   placeholder="Mobile No."
                   inputProps={{

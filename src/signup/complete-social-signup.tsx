@@ -206,6 +206,7 @@ function CompleteSocialSignupForm({
                 <PhoneInput
                   country={'in'}
                   value={phoneNumber}
+                  countryCodeEditable={false}
                   onChange={(value) => setPhoneNumber(value)}
                   placeholder="Mobile No."
                   inputProps={{

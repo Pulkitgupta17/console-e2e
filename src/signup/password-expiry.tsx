@@ -18,6 +18,7 @@ import { Eye, EyeOff, Check, X } from "lucide-react"
 import { getCookie, removeCookie, calculatePasswordStrength } from "@/services/commonMethods"
 import { useAppSelector } from "@/store/store"
 import { changeExpiredPassword, logoutAPI } from "@/services/signupService"
+import { MYACCOUNT_URL } from "@/constants/global.constants"
 
 // Password validation: 16-30 chars, mixed case, digits (matching Angular regex)
 const passwordRegex = /^(?=\D*\d)(?=[^a-z]*[a-z])(?=[^A-Z]*[A-Z]).{16,30}$/;
@@ -70,7 +71,7 @@ function PasswordExpiry({ className }: PasswordExpiryProps) {
         if (!isAuthenticated) {
           navigate('/accounts/signin');
         } else {
-          navigate('/');
+          window.location.href = MYACCOUNT_URL;
         }
       }
     }, 500);

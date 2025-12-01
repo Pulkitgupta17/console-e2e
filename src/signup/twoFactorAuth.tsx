@@ -9,6 +9,11 @@ import {
 import { Input } from "@/components/ui/input"
 import { cn } from "@/lib/utils"
 import { useState, useEffect } from "react"
+import {
+  processOtpPaste,
+  createOtpPasteHandler,
+  createOtpKeyDownHandler,
+} from "@/services/commonMethods"
 
 interface TwoFactorAuthProps {
   onSubmit?: (code: string, isMobileOTP: boolean) => Promise<void>;
@@ -53,8 +58,27 @@ function TwoFactorAuth({
     }
   }, [timer]);
 
+  const processPasteData = (pastedData: string) => {
+    processOtpPaste({
+      pastedData,
+      otpLength: 6,
+      setOtpValues,
+      inputIdPrefix: 'otp',
+    })
+  }
+
   const handleOtpChange = (index: number, value: string) => {
-    if (value.length > 1) return 
+    // If value length is greater than 1, it's likely a paste operation
+    if (value.length > 1) {
+      processPasteData(value)
+      return
+    }
+    
+    // For single character input, only allow numeric characters
+    if (value && !/^\d$/.test(value)) {
+      return
+    }
+    
     const newValues = [...otpValues]
     newValues[index] = value
     setOtpValues(newValues)
@@ -66,11 +90,13 @@ function TwoFactorAuth({
     }
   }
 
-  const addInputValidation = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (!/[0-9]/.test(e.key) && e.key !== "Backspace" && e.key !== "Tab" && e.key !== "ArrowLeft" && e.key !== "ArrowRight") {
-      e.preventDefault();
-    }
-  }
+  const handlePaste = createOtpPasteHandler(processPasteData)
+
+  const handleKeyDown = createOtpKeyDownHandler({
+    otpValues,
+    setOtpValues,
+    inputIdPrefix: 'otp',
+  })
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -246,10 +272,10 @@ function TwoFactorAuth({
                       id={`otp-${index}`}
                       type="text"
                       inputMode="numeric"
-                      maxLength={1}
                       value={value}
                       onChange={(e) => handleOtpChange(index, e.target.value)}
-                      onKeyDown={(e) => addInputValidation(e)}
+                      onKeyDown={(e) => handleKeyDown(e, index)}
+                      onPaste={handlePaste}
                       variant="primary"
                       size="otp"
                       className="text-center text-lg font-semibold"
