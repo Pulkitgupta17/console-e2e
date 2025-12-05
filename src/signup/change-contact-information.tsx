@@ -11,10 +11,15 @@ import { cn } from "@/lib/utils"
 import { useState } from "react"
 import PhoneInput from 'react-phone-input-2'
 import 'react-phone-input-2/lib/style.css'
+import { parsePhoneNumber } from 'libphonenumber-js'
 import type { SignupData, OtpStatus } from "@/interfaces/signupInterface"
 import { toast } from "sonner"
 import { customerDetailsVerification, sendOtpEmail } from "@/services/signupService"
 import { useGoogleReCaptcha } from "react-google-recaptcha-v3"
+import { useAppSelector } from "@/store/store"
+import { useForm } from "react-hook-form"
+import { zodResolver } from "@hookform/resolvers/zod"
+import { z } from "zod"
 
 interface ChangeContactInformationProps extends React.ComponentProps<"div"> {
   onBack?: () => void
@@ -23,6 +28,12 @@ interface ChangeContactInformationProps extends React.ComponentProps<"div"> {
   otpStatus?: OtpStatus
   onUpdate?: (updatedData: SignupData) => void
 }
+
+const emailSchema = z.object({
+  email: z.string().min(1, { message: "Email is required" }).email({ message: "Invalid email address" }),
+});
+
+type EmailFormFields = z.infer<typeof emailSchema>;
 
 function ChangeContactInformation({
   className,
@@ -34,9 +45,35 @@ function ChangeContactInformation({
   ...props
 }: ChangeContactInformationProps) {
   const { executeRecaptcha } = useGoogleReCaptcha();
+  const { countriesList, restrictedCountriesList, loading: countriesLoading } = useAppSelector((state) => state.countries);
+  
+  // Prepare countries props for PhoneInput - ensure ISO 3166-1 alpha-2 format (lowercase)
+  // react-phone-input-2 expects lowercase ISO 3166-1 alpha-2 codes like ['us', 'ca', 'gb']
+  const onlyCountriesProp = !countriesLoading && countriesList.length > 0 
+    ? countriesList.filter((c: string) => c && c.length === 2).map((c: string) => c.toLowerCase()) // Ensure lowercase and valid 2-letter codes
+    : undefined;
+  const excludeCountriesProp = !countriesLoading && restrictedCountriesList.length > 0 
+    ? restrictedCountriesList.filter((c: string) => c && c.length === 2).map((c: string) => c.toLowerCase()) // Ensure lowercase and valid 2-letter codes
+    : undefined;
+  
+  // Key to force remount when countries data changes - changes when data loads or list updates
+  const phoneInputKey = `phone-${countriesList.length}-${countriesLoading}-${onlyCountriesProp?.join(',') || 'empty'}`;
+  
+  // Form validation for email
+  const { register, handleSubmit: handleFormSubmit, formState: { errors: emailErrors, isValid: isEmailValid }, watch } = useForm<EmailFormFields>({
+    defaultValues: {
+      email: signupData.email,
+    },
+    resolver: zodResolver(emailSchema),
+    mode: "onChange", 
+  });
+  
+  const watchedEmail = watch("email");
+  
   const [phoneNumber, setPhoneNumber] = useState(signupData.phone)
-  const [email, setEmail] = useState(signupData.email)
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [phoneError, setPhoneError] = useState<string | null>(null)
+  const [selectedCountry, setSelectedCountry] = useState<string>('in')
 
   const handleBack = () => {
     if (onBack) {
@@ -46,15 +83,43 @@ function ChangeContactInformation({
 
   const isDisabled = () => {
     const phoneChanged = signupData.phone !== phoneNumber;
-    const emailChanged = signupData.email !== email;
-    return (!phoneChanged && !emailChanged) || isSubmitting;
+    const emailChanged = signupData.email !== watchedEmail;
+    const emailError = changeContactType === 'email' && (!isEmailValid || !!emailErrors.email);
+    return (!phoneChanged && !emailChanged) || isSubmitting || (changeContactType === 'mobile' && !!phoneError) || emailError;
   }
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    
+  const onSubmit = async (data: EmailFormFields) => {
     if (isDisabled()) {
       return;
+    }
+
+    // Validate phone number if mobile is being changed
+    if (changeContactType === 'mobile' && phoneNumber) {
+      try {
+        const phoneNumberWithCountry = phoneNumber.startsWith('+') ? phoneNumber : `+${phoneNumber}`;
+        const parsedNumber = parsePhoneNumber(phoneNumberWithCountry, selectedCountry.toUpperCase() as any);
+        
+        if (!parsedNumber || !parsedNumber.isValid()) {
+          setPhoneError("Please enter a valid phone number");
+          toast.error("Please enter a valid phone number");
+          return;
+        }
+        
+        // Clear error if valid
+        setPhoneError(null);
+      } catch (error) {
+        setPhoneError("Please enter a valid phone number");
+        toast.error("Please enter a valid phone number");
+        return;
+      }
+    }
+
+    // Validate email if email is being changed
+    if (changeContactType === 'email') {
+      if (!data.email || !data.email.trim()) {
+        toast.error("Email is required");
+        return;
+      }
     }
 
     setIsSubmitting(true);
@@ -63,7 +128,7 @@ function ChangeContactInformation({
       const updatedSignupData: SignupData = {
         ...signupData,
         phone: phoneNumber,
-        email: email,
+        email: data.email,
       };
 
       // Always send OTPs to both updated phone number and email
@@ -79,7 +144,7 @@ function ChangeContactInformation({
       const recaptchaToken = await executeRecaptcha("resend_otp");
       promises.push(
         customerDetailsVerification({
-          email: email,
+          email: data.email,
           mobile: phoneNumber,
           recaptcha: recaptchaToken,
           version: "v3",
@@ -93,7 +158,7 @@ function ChangeContactInformation({
       if (otpStatus) {
         promises.push(
           sendOtpEmail({
-            email: email,
+            email: data.email,
             mobile: phoneNumber,
             full_name: signupData.name,
             type: "signup",
@@ -153,18 +218,60 @@ function ChangeContactInformation({
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <form className="space-y-6 mt-4" onSubmit={handleSubmit}>
+          <form className="space-y-6 mt-4" onSubmit={handleFormSubmit(onSubmit)}>
             <div className="space-y-4">
               <div className="space-y-2">
-                <label className="text-sm font-medium text-white">Phone Number</label>
-                <PhoneInput
-                  countryCodeEditable={false}
-                  country={'in'}
-                  value={phoneNumber}
-                  onChange={setPhoneNumber}
-                  placeholder="Mobile No."
-                  disabled={changeContactType === 'email'}
-                />
+                {/* <label className="text-sm font-medium text-white">Phone Number</label> */}
+                <div className={cn(
+                  "transition-opacity duration-200",
+                  changeContactType === 'email' && "opacity-50 pointer-events-none cursor-not-allowed"
+                )}>
+                  <div>
+                    <PhoneInput
+                      key={phoneInputKey}
+                      countryCodeEditable={false}
+                      country={'in'}
+                      value={phoneNumber}
+                      {...(onlyCountriesProp && { onlyCountries: onlyCountriesProp })}
+                      {...(excludeCountriesProp && { excludeCountries: excludeCountriesProp })}
+                      preferredCountries={['us', 'in', 'uk']}
+                      onChange={(value, countryData) => {
+                        setPhoneNumber(value);
+                        // Extract country code from countryData object
+                        const countryCode = (countryData as any)?.countryCode?.toLowerCase() || 
+                                           (countryData as any)?.iso2?.toLowerCase() || 
+                                           'in';
+                        setSelectedCountry(countryCode);
+                        setPhoneError(null); // Clear error when user types
+                      }}
+                      onBlur={() => {
+                        // Validate on blur only if mobile is being changed
+                        if (changeContactType === 'mobile' && phoneNumber) {
+                          try {
+                            const phoneNumberWithCountry = phoneNumber.startsWith('+') ? phoneNumber : `+${phoneNumber}`;
+                            const parsedNumber = parsePhoneNumber(phoneNumberWithCountry, selectedCountry.toUpperCase() as any);
+                            
+                            if (!parsedNumber || !parsedNumber.isValid()) {
+                              setPhoneError("Please enter a valid phone number");
+                            } else {
+                              setPhoneError(null);
+                            }
+                          } catch (error) {
+                            setPhoneError("Please enter a valid phone number");
+                          }
+                        } else {
+                          setPhoneError(null);
+                        }
+                      }}
+                      placeholder="Mobile No."
+                      disabled={changeContactType === 'email'}
+                      containerClass={cn("phone-input-container", phoneError && changeContactType === 'mobile' && "phone-input-error")}
+                    />
+                  </div>
+                </div>
+                {phoneError && changeContactType === 'mobile' && (
+                  <p className="text-red-400 text-xs mt-1">{phoneError}</p>
+                )}
               </div>
             </div>
 
@@ -174,23 +281,20 @@ function ChangeContactInformation({
                 <Input
                   type="email"
                   placeholder="Email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
                   variant="primary"
                   size="xl"
                   disabled={changeContactType === 'mobile'}
+                  className={emailErrors.email ? "border-red-500 focus-visible:border-red-500 focus-visible:ring-red-500/20" : ""}
+                  {...register("email")}
                 />
+                {emailErrors.email && (
+                  <p className="text-red-400 text-xs mt-1">{emailErrors.email.message}</p>
+                )}
               </div>
             </div>
 
             <div className="bg-gray-800/50 border border-gray-700 rounded-md p-4">
               <div className="flex items-start gap-2">
-                <input
-                  type="checkbox"
-                  checked
-                  readOnly
-                  className="mt-1 w-4 h-4 text-cyan-600 bg-gray-800 border-gray-700 rounded focus:ring-cyan-500 focus:ring-2 pointer-events-none"
-                />
                 <p className="text-sm text-gray-300">
                   New verification codes will be sent to any contact information you change.
                 </p>

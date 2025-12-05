@@ -11,6 +11,7 @@ import { cn } from "@/lib/utils"
 import { useState, useEffect, useRef } from "react"
 import PhoneInput from 'react-phone-input-2'
 import 'react-phone-input-2/lib/style.css'
+import { parsePhoneNumber } from 'libphonenumber-js'
 import OtpVerification from './otp-verification'
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm, type SubmitHandler } from "react-hook-form";
@@ -21,10 +22,11 @@ import { GoogleReCaptchaProvider, useGoogleReCaptcha } from "react-google-recapt
 import { customerDetailsVerification, sendOtpEmail, googleCallback } from "@/services/signupService";
 import { toast } from "sonner";
 import type { SignupData, OtpStatus, SocialUser } from "@/interfaces/signupInterface";
-import { getCookie, removeCookie, calculatePasswordStrength } from "@/services/commonMethods";
+import { getCookie, removeCookie, calculatePasswordStrength, captureUTMParameters } from "@/services/commonMethods";
 import CompleteSocialSignupForm from "./complete-social-signup";
 import { Spinner } from '@/components/ui/shadcn-io/spinner';
 import { MYACCOUNT_URL } from "@/constants/global.constants"
+import { useAppSelector } from "@/store/store";
 
 // Declare Google Identity Services types
 declare global {
@@ -34,7 +36,9 @@ declare global {
 }
 
 const schema = z.object({
-  name: z.string().min(1, { message: "Name is required" }),
+  name: z.string()
+    .min(1, { message: "Name is required" })
+    .regex(/^[a-zA-Z\s]+$/, { message: "NFull name should contain only alphabets." }),
   email: z.string().email({ message: "Invalid email address" }),
   password: z.string().min(8, { message: "Password must be at least 8 characters long" }),
 });
@@ -47,17 +51,31 @@ function SignupForm({
 }: React.ComponentProps<"div">) {
   const { executeRecaptcha } = useGoogleReCaptcha();
   const navigate = useNavigate();
-  const { register, handleSubmit, watch, formState: {isSubmitting, errors} } = useForm<FormFields>({
+  const { countriesList, restrictedCountriesList, loading: countriesLoading } = useAppSelector((state) => state.countries);
+  
+  const onlyCountriesProp = !countriesLoading && countriesList.length > 0 
+    ? countriesList.filter((c: string) => c && c.length === 2).map((c: string) => c.toLowerCase()) // Ensure lowercase and valid 2-letter codes
+    : undefined;
+  const excludeCountriesProp = !countriesLoading && restrictedCountriesList.length > 0 
+    ? restrictedCountriesList.filter((c: string) => c && c.length === 2).map((c: string) => c.toLowerCase()) // Ensure lowercase and valid 2-letter codes
+    : undefined;
+  
+  // Key to force remount when countries data changes - changes when data loads or list updates
+  const phoneInputKey = `phone-${countriesList.length}-${countriesLoading}-${onlyCountriesProp?.join(',') || 'empty'}`;
+  const { register, handleSubmit, watch, formState: {isSubmitting, isValid, errors} } = useForm<FormFields>({
     defaultValues: {
       name: "",
       email: "",
       password: "",
     },
     resolver: zodResolver(schema),
+    mode: "onChange", // Enable validation on change to update isValid in real-time
   });
   
   const [showPassword, setShowPassword] = useState(false);
   const [phoneNumber, setPhoneNumber] = useState('');
+  const [phoneError, setPhoneError] = useState<string | null>(null);
+  const [selectedCountry, setSelectedCountry] = useState<string>('in');
   const [showOtpVerification, setShowOtpVerification] = useState(false);
   const [signupData, setSignupData] = useState<SignupData | null>(null);
   const [otpStatus, setOtpStatus] = useState<OtpStatus | null>(null);
@@ -69,6 +87,11 @@ function SignupForm({
   
   // Use ref to prevent duplicate OAuth processing
   const hasProcessedOAuth = useRef(false);
+
+  // Capture UTM parameters when signup page loads
+  useEffect(() => {
+    captureUTMParameters();
+  }, []);
 
   // Redirect to dashboard if user is already logged in (check cookies)
   useEffect(() => {
@@ -227,8 +250,28 @@ function SignupForm({
       return;
     }
     
-    // Validate phone number
-    if (!phoneNumber || phoneNumber.length < 10) {
+    // Validate phone number using libphonenumber-js
+    if (!phoneNumber) {
+      setPhoneError("Phone number is required");
+      toast.error("Please enter a valid phone number");
+      return;
+    }
+
+    try {
+      // Parse and validate phone number based on selected country
+      const phoneNumberWithCountry = phoneNumber.startsWith('+') ? phoneNumber : `+${phoneNumber}`;
+      const parsedNumber = parsePhoneNumber(phoneNumberWithCountry, selectedCountry.toUpperCase() as any);
+      
+      if (!parsedNumber || !parsedNumber.isValid()) {
+        setPhoneError("Please enter a valid phone number");
+        toast.error("Please enter a valid phone number");
+        return;
+      }
+      
+      // Clear error if valid
+      setPhoneError(null);
+    } catch (error) {
+      setPhoneError("Please enter a valid phone number");
       toast.error("Please enter a valid phone number");
       return;
     }
@@ -491,16 +534,53 @@ function SignupForm({
               </div>
               
               <div className="space-y-2">
-                <PhoneInput
-                  country={'in'}
-                  value={phoneNumber}
-                  countryCodeEditable={false}
-                  onChange={(value) => setPhoneNumber(value)}
-                  placeholder="Mobile No."
-                  inputProps={{
-                    autoComplete: 'off',
-                  }}
-                />
+                <div className={cn(phoneError && "react-tel-input-error")}>
+                  <PhoneInput
+                    key={phoneInputKey}
+                    country={'in'}
+                    value={phoneNumber}
+                    countryCodeEditable={false}
+                    {...(onlyCountriesProp && { onlyCountries: onlyCountriesProp })}
+                    {...(excludeCountriesProp && { excludeCountries: excludeCountriesProp })}
+                    preferredCountries={['us', 'in', 'gb']}
+                    onChange={(value, countryData) => {
+                      setPhoneNumber(value);
+                      // Extract country code from countryData object
+                      const countryCode = (countryData as any)?.countryCode?.toLowerCase() || 
+                                         (countryData as any)?.iso2?.toLowerCase() || 
+                                         'in';
+                      setSelectedCountry(countryCode);
+                      setPhoneError(null); // Clear error when user types
+                    }}
+                    onBlur={() => {
+                      // Validate on blur
+                      if (phoneNumber) {
+                        try {
+                          const phoneNumberWithCountry = phoneNumber.startsWith('+') ? phoneNumber : `+${phoneNumber}`;
+                          const parsedNumber = parsePhoneNumber(phoneNumberWithCountry, selectedCountry.toUpperCase() as any);
+                          
+                          if (!parsedNumber || !parsedNumber.isValid()) {
+                            setPhoneError("Please enter a valid phone number");
+                          } else {
+                            setPhoneError(null);
+                          }
+                        } catch (error) {
+                          setPhoneError("Please enter a valid phone number");
+                        }
+                      } else {
+                        setPhoneError(null);
+                      }
+                    }}
+                    placeholder="Mobile No."
+                    inputProps={{
+                      autoComplete: 'off',
+                    }}
+                    containerClass={cn("phone-input-container", phoneError && "phone-input-error")}
+                  />
+                </div>
+                {phoneError && (
+                  <p className="text-red-400 text-xs mt-1">{phoneError}</p>
+                )}
               </div>
               
               <div className="space-y-2">
@@ -564,7 +644,7 @@ function SignupForm({
                         <div key={check} className={`flex items-center gap-1 ${passed ? 'text-emerald-400' : 'text-gray-500'}`}>
                           {passed ? <Check className="h-3 w-3" /> : <X className="h-3 w-3" />}
                           <span className="capitalize">
-                            {check === 'length' ? '8+ chars' : 
+                            {check === 'length' ? '8+ characters' : 
                             check === 'lowercase' ? 'lowercase' :
                             check === 'uppercase' ? 'uppercase' :
                             check === 'numbers' ? 'numbers' : 'special'}
@@ -581,7 +661,7 @@ function SignupForm({
                   type="submit" 
                   variant="signup" 
                   size="xl"
-                  disabled={isSubmitting}
+                  disabled={isSubmitting || !isValid || !phoneNumber || !!phoneError}
                 >
                   {isSubmitting ? "Creating Account..." : "Create Account"}
                 </Button>

@@ -1,5 +1,5 @@
 #List of SERVER IPs
-testServer=172.16.235.50
+testServer=172.16.235.86
 
 groot=172.16.230.94
 thor=172.16.231.19
@@ -34,7 +34,7 @@ if [ -z "$option" ]; then
 fi
 
 echo "Valid Environment"
-serverIp=172.16.235.50
+serverIp=172.16.235.86
 
 if [ -z "$serverIp" ]; then
     echo "Failed to retrieve server IP. Enter valid environment name."

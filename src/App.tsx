@@ -3,9 +3,17 @@ import { Toaster } from 'sonner'
 import { useEffect } from 'react'
 import { useLocation } from 'react-router-dom'
 import { setCookie } from './services/commonMethods'
+import { useAppDispatch } from './store/store'
+import { fetchCountries } from './store/countriesSlice'
 
 function App() {
   const location = useLocation();
+  const dispatch = useAppDispatch();
+
+  useEffect(() => {
+    dispatch(fetchCountries());
+  }, [dispatch]);
+
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);
     const service = urlParams.get('service');

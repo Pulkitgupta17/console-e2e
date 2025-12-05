@@ -59,7 +59,7 @@ export const setSessionTimeCookie = (): void => {
   const domain = import.meta.env.VITE_domainForCookie;
   if (domain && !window.location.hostname.includes('localhost')) {
     cookieOptions.domain = domain;
-    cookieOptions.secure = true;
+    // cookieOptions.secure = true;
   }
   
   cookie.set(cookie_name, cookie_value, cookieOptions);
@@ -82,7 +82,7 @@ export const setSessionFor60Days = (): void => {
   const domain = import.meta.env.VITE_domainForCookie;
   if (domain && !window.location.hostname.includes('localhost')) {
     cookieOptions.domain = domain;
-    cookieOptions.secure = true;
+    // cookieOptions.secure = true;
   }
   
   cookie.set(cookie_name, cookie_value, cookieOptions);
@@ -100,10 +100,10 @@ export const setCrossDomainCookies = (): void => {
   
   if (domain && !window.location.hostname.includes('localhost')) {
     // Set cookies with domain for cross-domain access
-    document.cookie = `token=${token}; expires=${today_date.toUTCString()}; domain=${domain}; path=/; Secure`;
-    document.cookie = `apikey=${apikey}; expires=${today_date.toUTCString()}; domain=${domain}; path=/; Secure`;
+    document.cookie = `token=${token}; expires=${today_date.toUTCString()}; domain=${domain}; path=/;`;
+    document.cookie = `apikey=${apikey}; expires=${today_date.toUTCString()}; domain=${domain}; path=/;`;
     if (email) {
-      document.cookie = `email=${email}; expires=${today_date.toUTCString()}; domain=${domain}; path=/; Secure`;
+      document.cookie = `email=${email}; expires=${today_date.toUTCString()}; domain=${domain}; path=/;`;
     }
   } else {
     // For localhost, use regular cookie setting
@@ -358,4 +358,56 @@ export const createOtpKeyDownHandler = ({
     }
     inputValidation(e);
   };
+};
+
+export const captureUTMParameters = (): void => {
+  const urlParams = new URLSearchParams(window.location.search);
+  const utmParams = ['utm_campaign', 'utm_source', 'utm_medium', 'utm_term', 'utm_content'];
+  
+  utmParams.forEach(param => {
+    const value = urlParams.get(param);
+    if (value) {
+      const expiryDate = new Date();
+      expiryDate.setDate(expiryDate.getDate() + 30);
+      document.cookie = `${param}=${encodeURIComponent(value)}; expires=${expiryDate.toUTCString()}; path=/;`;
+    }
+  });
+};
+
+export const setUTMResource = async (): Promise<void> => {
+  try {
+    const csrfToken = getCookie('csrftoken');
+    if (!csrfToken) {
+      return;
+    }
+
+    const utmCampaign = getCookie('utm_campaign') || '';
+    const utmSource = getCookie('utm_source') || '';
+    const utmMedium = getCookie('utm_medium') || '';
+    const utmTerm = getCookie('utm_term') || '';
+    const utmContent = getCookie('utm_content') || '';
+
+    const { setUTMCampaign } = await import('@/services/signupService');
+    
+    const payload = {
+      csrfmiddlewaretoken: csrfToken,
+      utm_campaign: utmCampaign,
+      utm_source: utmSource,
+      utm_medium: utmMedium,
+      utm_term: utmTerm,
+      utm_content: utmContent,
+    };
+
+    const response = await setUTMCampaign(payload);
+    
+    if (response.code === 200) {
+      removeCookie('utm_campaign');
+      removeCookie('utm_source');
+      removeCookie('utm_medium');
+      removeCookie('utm_term');
+      removeCookie('utm_content');
+    }
+  } catch (error) {
+    console.debug('Error updating UTM campaign:', error);
+  }
 };

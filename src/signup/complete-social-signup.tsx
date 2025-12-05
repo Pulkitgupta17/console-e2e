@@ -109,7 +109,17 @@ function CompleteSocialSignupForm({
 
       if (responseData?.email_exists) {
         setShowEmailExistsError(true);
-        toast.error("A user is already registered with this e-mail address. Sign in");
+        toast.error(
+          <div>
+            A user is already registered with this e-mail address.{" "}
+            <button
+              onClick={() => navigate('/accounts/signin')}
+              className="underline text-white hover:text-cyan-400 font-medium"
+            >
+              Sign in
+            </button>
+          </div>
+        );
         return;
       }
 

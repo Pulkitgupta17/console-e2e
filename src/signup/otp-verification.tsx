@@ -26,7 +26,7 @@ import { useAppDispatch } from "@/store/store"
 import { login as loginAction, type User } from "@/store/authSlice"
 import type { SignupData, OtpStatus } from "@/interfaces/signupInterface"
 import { NOTEBOOK_URL } from "@/constants/global.constants"
-import { postCrossDomainMessage, setSessionTimeCookie, processOtpPaste, createOtpPasteHandler, createOtpKeyDownHandler } from "@/services/commonMethods"
+import { postCrossDomainMessage, setSessionTimeCookie, processOtpPaste, createOtpPasteHandler, createOtpKeyDownHandler, setUTMResource } from "@/services/commonMethods"
 
 interface OtpVerificationProps extends React.ComponentProps<"div"> {
   onBack?: () => void;
@@ -336,7 +336,8 @@ function OtpVerification({
 
         toast.success("Signup successful! Welcome to E2E Networks");
         
-        // Remove login progress flag before navigating
+        await setUTMResource();
+        
         localStorage.removeItem("logininprogress");
         
         // Navigate to TIR Dashboard

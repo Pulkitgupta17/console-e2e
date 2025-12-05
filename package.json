@@ -8,8 +8,8 @@
     "build": "tsc -b && vite build",
     "lint": "eslint .",
     "preview": "vite preview",
-    "stageBuild": "vite build --mode stage",
-    "deployStage": "sh src/deploy.sh -- stage",
+    "stageBuild": "vite build --mode groot",
+    "deployStage": "sh src/deploy.sh -- groot",
     "deployTest": "sh src/deploy.sh -- test"
   },
   "dependencies": {
@@ -26,6 +26,7 @@
     "clsx": "^2.1.1",
     "crypto-js": "^4.2.0",
     "jwt-decode": "^4.0.0",
+    "libphonenumber-js": "^1.12.31",
     "lucide-react": "^0.545.0",
     "react": "^19.1.1",
     "react-country-phone-input": "^1.0.2",

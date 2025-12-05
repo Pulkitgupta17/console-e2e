@@ -19,7 +19,7 @@ import { useAppDispatch } from "@/store/store"
 import { login as loginAction, type User } from "@/store/authSlice"
 import type { SocialUser, OtpStatus } from "@/interfaces/signupInterface"
 import { NOTEBOOK_URL } from "@/constants/global.constants"
-import { postCrossDomainMessage, setSessionTimeCookie, processOtpPaste, createOtpPasteHandler, createOtpKeyDownHandler } from "@/services/commonMethods"
+import { postCrossDomainMessage, setSessionTimeCookie, processOtpPaste, createOtpPasteHandler, createOtpKeyDownHandler, setUTMResource } from "@/services/commonMethods"
 
 interface SocialOtpVerificationProps extends React.ComponentProps<"div"> {
   onBack?: () => void;
@@ -260,6 +260,7 @@ function SocialOtpVerification({
         }
 
         toast.success("Signup successful! Welcome to E2E Networks");
+        await setUTMResource();
         localStorage.removeItem("logininprogress");
 
         // Navigate to TIR Dashboard

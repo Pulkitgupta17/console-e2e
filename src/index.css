@@ -22,6 +22,12 @@ input:-moz-autofill {
   color: white !important;
 }
 
+/* Ensure reCAPTCHA badge is not cut off by footer */
+.grecaptcha-badge {
+  bottom: 60px !important;
+  z-index: 25 !important;
+}
+
 @theme inline {
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
@@ -345,6 +351,56 @@ input:-moz-autofill {
   background: #15212f !important;
   border-radius: 3px 0 0 0;
 }
+
+/* Phone input error state */
+.react-tel-input.phone-input-error .form-control,
+.phone-input-error.react-tel-input .form-control {
+  border-color: #ef4444 !important;
+}
+
+.react-tel-input.phone-input-error .form-control:focus,
+.phone-input-error.react-tel-input .form-control:focus {
+  border-color: #ef4444 !important;
+  box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.1) !important;
+}
+
+.react-tel-input.phone-input-error:focus-within .form-control,
+.phone-input-error.react-tel-input:focus-within .form-control {
+  border-color: #ef4444 !important;
+  box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.1) !important;
+}
+
+/* Error border on flag dropdown - override the border-right: none */
+.react-tel-input.phone-input-error .flag-dropdown,
+.phone-input-error.react-tel-input .flag-dropdown {
+  border-color: #ef4444 !important;
+  border-right-color: #ef4444 !important;
+  border-top-color: #ef4444 !important;
+  border-bottom-color: #ef4444 !important;
+  border-left-color: #ef4444 !important;
+}
+
+.react-tel-input.phone-input-error .flag-dropdown:focus,
+.phone-input-error.react-tel-input .flag-dropdown:focus {
+  border-color: #ef4444 !important;
+  border-right-color: #ef4444 !important;
+}
+
+.react-tel-input.phone-input-error:focus-within .flag-dropdown,
+.phone-input-error.react-tel-input:focus-within .flag-dropdown {
+  border-color: #ef4444 !important;
+  border-right-color: #ef4444 !important;
+}
+
+/* Ensure the border connects properly between flag and input */
+.react-tel-input.phone-input-error .form-control,
+.phone-input-error.react-tel-input .form-control {
+  border-left-color: #ef4444 !important;
+  border-top-color: #ef4444 !important;
+  border-bottom-color: #ef4444 !important;
+  border-right-color: #ef4444 !important;
+}
+
 /* E2E Networks social button styling - more prominent */
 .e2e-social-button {
   position: relative;

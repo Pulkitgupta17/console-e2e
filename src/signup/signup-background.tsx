@@ -1,13 +1,14 @@
 import { Badge } from "@/components/ui/badge"
 import { Outlet, useLocation } from "react-router-dom"
 import e2eLogo from "@/assets/e2e_logo.svg"
+import Footer from "@/components/Footer"
 
 function SignupBackground() {
   const location = useLocation()
   const isSignup = location.pathname.includes('/signup')
   return (
-      <div className={`min-h-screen`}>
-        <div className="min-h-screen bg-gray-950 relative overflow-hidden">
+      <div className={`h-screen flex flex-col overflow-hidden`}>
+        <div className="flex-1 bg-gray-950 relative overflow-y-auto">
           {/* Background gradient overlay */}
           <div className="absolute inset-0 bg-gradient-to-br from-cyan-500/20 via-emerald-500/10 to-cyan-500/20"></div>
           
@@ -120,6 +121,7 @@ function SignupBackground() {
             </div>
           </div>
         </div>
+        <Footer />
       </div>
   )
 }

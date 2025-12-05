@@ -8,8 +8,7 @@ export const API = axios.create({
   timeout: 30000,
   headers: {
     "Content-Type": "application/json",
-  },
-  withCredentials: true,
+  }
 });
 
 export const PublicAPI = axios.create({
@@ -45,7 +44,6 @@ API.interceptors.request.use(
     if(apiKey){
       config.params = config.params || {};
       config.params.apikey = apiKey;
-      config.headers['x-api-key'] = apiKey;
     }
     return config;
   },

@@ -321,7 +321,7 @@ function PasswordResetConfirm({ className }: PasswordResetConfirmProps) {
                         <div key={check} className={`flex items-center gap-1 ${passed ? 'text-emerald-400' : 'text-gray-500'}`}>
                           {passed ? <Check className="h-3 w-3" /> : <X className="h-3 w-3" />}
                           <span className="capitalize">
-                            {check === 'length' ? '8+ chars' : 
+                            {check === 'length' ? '8+ characters' : 
                             check === 'lowercase' ? 'lowercase' :
                             check === 'uppercase' ? 'uppercase' :
                             check === 'numbers' ? 'numbers' : 'special'}
