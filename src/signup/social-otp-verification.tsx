@@ -286,11 +286,11 @@ function SocialOtpVerification({
     <div className={cn("w-full max-w-md mx-auto", className)} {...props}>
       <Card className="border-gray-800/50 backdrop-blur-sm form-fade-in" style={{ backgroundColor: 'var(--signup-card-bg)' }}>
         <CardHeader className="text-left space-y-2">
-          <div className="mb-2">
+          <div className="flex items-center gap-3">
             <button
               type="button"
               onClick={onBack}
-              className="text-gray-400 hover:text-white transition-colors mb-3"
+              className="text-gray-400 hover:text-white transition-colors"
             >
               <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
@@ -390,7 +390,7 @@ function SocialOtpVerification({
                 type="submit" 
                 variant="signup" 
                 size="xl"
-                disabled={isSubmitting || !termsAccepted}
+                disabled={isSubmitting || !termsAccepted || mobileOtpValues.join('').length !== 6}
               >
                 {isSubmitting ? "Verifying..." : "Verify & Sign Up"}
               </Button>

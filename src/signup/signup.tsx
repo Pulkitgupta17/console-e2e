@@ -185,7 +185,6 @@ function SignupForm({
       // Handle GitHub OAuth callback
       else if (code && state) {
         const storedState = localStorage.getItem('github_oauth_state');
-        
         // CSRF validation
         if (state !== storedState) {
           toast.error("CSRF Error! Authentication Failed");
@@ -453,7 +452,7 @@ function SignupForm({
 
     // Get current URL for redirect (must match OAuth app settings)
     // Using localhost:4200 to match Google/GitHub OAuth configuration
-    const redirectUri = `http://localhost:4200/accounts/signup`;
+    const redirectUri = `${window.location.origin}/accounts/signup`;
 
     // GitHub OAuth Client ID
     const clientId = import.meta.env.VITE_GITHUB_CLIENT_ID || "c3a8b0fea19dbb91103f";
@@ -502,9 +501,11 @@ function SignupForm({
       
       <Card className="border-gray-800/50 backdrop-blur-sm form-fade-in" style={{ backgroundColor: 'var(--signup-card-bg)' }}>
         <CardHeader className="text-left space-y-2">
-          <CardTitle className="text-2xl font-bold text-white">
-            Start your free trial
-          </CardTitle>
+          <div className="flex items-center gap-3">
+            <CardTitle className="text-2xl font-bold text-white">
+              Start your free trial
+            </CardTitle>
+          </div>
           <CardDescription className="text-gray-400">
             No credit card. Sign up in minutes.
           </CardDescription>

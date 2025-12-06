@@ -7,8 +7,8 @@ function SignupBackground() {
   const location = useLocation()
   const isSignup = location.pathname.includes('/signup')
   return (
-      <div className={`h-screen flex flex-col overflow-hidden`}>
-        <div className="flex-1 bg-gray-950 relative overflow-y-auto">
+      <div className={`h-screen flex flex-col overflow-hidden relative`}>
+        <div className="fixed inset-0 bg-gray-950 pointer-events-none">
           {/* Background gradient overlay */}
           <div className="absolute inset-0 bg-gradient-to-br from-cyan-500/20 via-emerald-500/10 to-cyan-500/20"></div>
           
@@ -54,6 +54,10 @@ function SignupBackground() {
               <polygon points="100,50 0,100 100,100" fill="url(#movingGradient)" opacity="0.6" />
             </svg>
           </div>
+        </div>
+
+        {/* Scrollable Content Layer - scrolls over the fixed background */}
+        <div className="flex-1 relative z-10 overflow-y-auto">
           {/* Header */}
           <header className="relative z-10 p-6">
             <div className="flex items-center justify-between">

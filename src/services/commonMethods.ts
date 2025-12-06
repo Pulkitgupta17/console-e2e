@@ -37,6 +37,15 @@ export const removeCookie = (cookieName: string): any => {
   cookie.set(cookieName, getCookie(cookieName), cookieOptions);
 };
 
+export const removeAllCookies = (): void => {
+  const allCookies = cookie.getAll();
+  for (const cookieName in allCookies) {
+    if (Object.hasOwnProperty.call(allCookies, cookieName)) {
+      cookie.remove(cookieName);
+    }
+  }
+};
+
 export const getCookie = (cookieName: string): any => {
   return cookie.get(cookieName);
 };

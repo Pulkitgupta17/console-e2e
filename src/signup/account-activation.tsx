@@ -11,6 +11,7 @@ import { cn } from "@/lib/utils"
 import { useState, useEffect } from "react"
 import PhoneInput from 'react-phone-input-2'
 import 'react-phone-input-2/lib/style.css'
+import { parsePhoneNumber } from 'libphonenumber-js'
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
@@ -23,6 +24,7 @@ import { getCookie, calculatePasswordStrength } from "@/services/commonMethods";
 import MobileOtpActivation from "@/signup/mobile-otp-activation";
 import type { VerifyContactPersonResponse, SendOtpPhonePayload } from "@/interfaces/signupInterface";
 import { MYACCOUNT_URL } from "@/constants/global.constants"
+import { useAppSelector } from "@/store/store"
 
 const schema = z.object({
   firstName: z.string()
@@ -57,6 +59,19 @@ interface AccountActivationFormProps {
 
 function AccountActivationForm({ token, customerData, onOtpSent }: AccountActivationFormProps) {
   const { executeRecaptcha } = useGoogleReCaptcha();
+  const { countriesList, restrictedCountriesList, loading: countriesLoading } = useAppSelector((state) => state.countries);
+  
+  // Prepare countries props for PhoneInput - ensure ISO 3166-1 alpha-2 format (lowercase)
+  const onlyCountriesProp = !countriesLoading && countriesList.length > 0 
+    ? countriesList.filter((c: string) => c && c.length === 2).map((c: string) => c.toLowerCase())
+    : undefined;
+  const excludeCountriesProp = !countriesLoading && restrictedCountriesList.length > 0 
+    ? restrictedCountriesList.filter((c: string) => c && c.length === 2).map((c: string) => c.toLowerCase())
+    : undefined;
+  
+  // Key to force remount when countries data changes
+  const phoneInputKey = `phone-${countriesList.length}-${countriesLoading}-${onlyCountriesProp?.join(',') || 'empty'}`;
+  
   const { register, handleSubmit, watch, setValue, trigger, formState: { errors, isSubmitting, isValid } } = useForm<FormFields>({
     defaultValues: {
       firstName: "",
@@ -73,6 +88,8 @@ function AccountActivationForm({ token, customerData, onOtpSent }: AccountActiva
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [phoneNumber, setPhoneNumber] = useState('');
+  const [phoneError, setPhoneError] = useState<string | null>(null);
+  const [selectedCountry, setSelectedCountry] = useState<string>('in');
   const [btnDisabled, setBtnDisabled] = useState(false);
   const [passwordCheck, setPasswordCheck] = useState(false);
   const [showErrors, setShowErrors] = useState(false);
@@ -103,6 +120,35 @@ function AccountActivationForm({ token, customerData, onOtpSent }: AccountActiva
 
     if (password !== confirmPassword) {
       setPasswordCheck(true);
+      return;
+    }
+
+    // Validate phone number using libphonenumber-js
+    if (!phoneNumber) {
+      setPhoneError("Phone number is required");
+      toast.error("Please enter a valid phone number");
+      setBtnDisabled(false);
+      return;
+    }
+
+    try {
+      // Parse and validate phone number based on selected country
+      const phoneNumberWithCountry = phoneNumber.startsWith('+') ? phoneNumber : `+${phoneNumber}`;
+      const parsedNumber = parsePhoneNumber(phoneNumberWithCountry, selectedCountry.toUpperCase() as any);
+      
+      if (!parsedNumber || !parsedNumber.isValid()) {
+        setPhoneError("Please enter a valid phone number");
+        toast.error("Please enter a valid phone number");
+        setBtnDisabled(false);
+        return;
+      }
+      
+      // Clear error if valid
+      setPhoneError(null);
+    } catch (error) {
+      setPhoneError("Please enter a valid phone number");
+      toast.error("Please enter a valid phone number");
+      setBtnDisabled(false);
       return;
     }
 
@@ -203,24 +249,55 @@ function AccountActivationForm({ token, customerData, onOtpSent }: AccountActiva
       </div>
 
       <div className="space-y-2">
-        <PhoneInput
-          country={'in'}
-          value={phoneNumber}
-          countryCodeEditable={false}
-          onChange={(val) => {
-            setPhoneNumber(val);
-            const formatted = val ? (val.startsWith("+") ? val : `+${val}`) : "";
-            setValue("phone", formatted, { shouldValidate: true, shouldDirty: true, shouldTouch: true });
-            trigger("phone");
-          }}
-          placeholder="Mobile Number"
-          inputClass={`!w-full !h-12 !bg-gray-800/50 ${errors.phone ? '!border-red-500 focus:!border-red-500' : '!border-gray-700'} !text-white !rounded-md !px-4 !py-3`}
-          containerClass="phone-input-container"
-          buttonClass={`!bg-gray-800/50 ${errors.phone ? '!border-red-500' : '!border-gray-700'}`}
-        />
-        {showErrors && errors.phone && (
-          <p className="text-xs text-red-400">{errors.phone.message as string}</p>
-        )}
+        <div className={cn(phoneError && "react-tel-input-error")}>
+          <PhoneInput
+            key={phoneInputKey}
+            country={'in'}
+            value={phoneNumber}
+            countryCodeEditable={false}
+            {...(onlyCountriesProp && { onlyCountries: onlyCountriesProp })}
+            {...(excludeCountriesProp && { excludeCountries: excludeCountriesProp })}
+            preferredCountries={['us', 'in', 'uk']}
+            onChange={(value, countryData) => {
+              setPhoneNumber(value);
+              // Extract country code from countryData object
+              const countryCode = (countryData as any)?.countryCode?.toLowerCase() || 
+                                 (countryData as any)?.iso2?.toLowerCase() || 
+                                 'in';
+              setSelectedCountry(countryCode);
+              setPhoneError(null); // Clear error when user types
+              const formatted = value ? (value.startsWith("+") ? value : `+${value}`) : "";
+              setValue("phone", formatted, { shouldValidate: true, shouldDirty: true, shouldTouch: true });
+              trigger("phone");
+            }}
+            onBlur={() => {
+              // Validate on blur
+              if (phoneNumber) {
+                try {
+                  const phoneNumberWithCountry = phoneNumber.startsWith('+') ? phoneNumber : `+${phoneNumber}`;
+                  const parsedNumber = parsePhoneNumber(phoneNumberWithCountry, selectedCountry.toUpperCase() as any);
+                  
+                  if (!parsedNumber || !parsedNumber.isValid()) {
+                    setPhoneError("Please enter a valid phone number");
+                  } else {
+                    setPhoneError(null);
+                  }
+                } catch (error) {
+                  setPhoneError("Please enter a valid phone number");
+                }
+              } else {
+                setPhoneError(null);
+              }
+            }}
+            placeholder="Mobile Number"
+            inputClass={`!w-full !h-11 !bg-gray-800/50 ${errors.phone || phoneError ? '!border-red-500 focus:!border-red-500' : '!border-gray-700'} !text-white !rounded-md !px-4 !py-2`}
+            containerClass={cn("phone-input-container", phoneError && "phone-input-error")}
+            buttonClass={`!bg-gray-800/50 ${errors.phone || phoneError ? '!border-red-500' : '!border-gray-700'}`}
+          />
+        </div>
+        {(showErrors && errors.phone) || phoneError ? (
+          <p className="text-xs text-red-400">{phoneError || (errors.phone?.message as string)}</p>
+        ) : null}
       </div>
 
       <div className="space-y-2">

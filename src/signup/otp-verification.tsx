@@ -394,16 +394,18 @@ function OtpVerification({
     <div className={cn("w-full max-w-md mx-auto", className)} {...props}>
       <Card className="border-gray-800/50 backdrop-blur-sm form-fade-in" style={{ backgroundColor: 'var(--signup-card-bg)' }}>
         <CardHeader className="text-left space-y-2">
-          <div className="mb-2">
-            <button
-              type="button"
-              onClick={onBack}
-              className="text-gray-400 hover:text-white transition-colors mb-2"
-            >
-              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-              </svg>
-            </button>
+          <div className="flex items-center gap-3">
+            {onBack && (
+              <button
+                type="button"
+                onClick={onBack}
+                className="text-gray-400 hover:text-white transition-colors"
+              >
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                </svg>
+              </button>
+            )}
             <CardTitle className="text-2xl font-bold text-white">
               Start your free trial
             </CardTitle>
@@ -564,7 +566,12 @@ function OtpVerification({
                 type="submit" 
                 variant="signup" 
                 size="xl"
-                disabled={isSubmitting || !termsAccepted}
+                disabled={
+                  isSubmitting || 
+                  !termsAccepted || 
+                  mobileOtpValues.join('').length !== 6 || 
+                  emailOtpValues.join('').length !== 6
+                }
               >
                 {isSubmitting ? "Verifying..." : "Verify & Sign Up"}
               </Button>

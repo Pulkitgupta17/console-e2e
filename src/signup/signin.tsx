@@ -24,7 +24,8 @@ import API from "@/axios";
 import TwoFactorAuth from "./twoFactorAuth";
 import GoogleAuthenticator from "./google-authenticator";
 import SSOOrganizationForm from "./sso-organization-form";
-import { getCookie, removeCookie, setCookie, setSessionTimeCookie, setSessionFor60Days, postCrossDomainMessage, navigateWithQueryParams, captureUTMParameters } from "@/services/commonMethods";
+import CompleteSocialSignupForm from "./complete-social-signup";
+import { getCookie, removeCookie, setCookie, setSessionTimeCookie, setSessionFor60Days, postCrossDomainMessage, navigateWithQueryParams, captureUTMParameters, removeAllCookies } from "@/services/commonMethods";
 import { googleCallback, verifySocialEmail, loginGoogle, loginGithub, githubCallback, getCustomerValidationStatus, verifyGATotp, verifyGABackupCode, reportLostGAKey, requestSSOLogin } from "@/services/signupService";
 import type { SocialUser } from "@/interfaces/signupInterface";
 import { Spinner } from '@/components/ui/shadcn-io/spinner';
@@ -283,6 +284,8 @@ function Signin({
   const [ssoError, setSsoError] = useState<string | null>(null);
   const [isSSOLoading, setIsSSOLoading] = useState(false);
   const hasProcessedSSO = useRef(false);
+  const [showSocialSignup, setShowSocialSignup] = useState(false);
+  const [socialUser, setSocialUser] = useState<SocialUser | null>(null);
 
   useEffect(() => {
     captureUTMParameters();
@@ -398,7 +401,6 @@ function Signin({
             return;
           }
 
-          // If email doesn't exist, redirect to signup
           if (!emailVerifyResponse.data.email_exists) {
             const user: SocialUser = {
               name: callbackResponse.data.name || "",
@@ -408,8 +410,9 @@ function Signin({
               provider: "Google",
             };
             localStorage.setItem('socialuser', JSON.stringify(user));
+            setSocialUser(user);
+            setShowSocialSignup(true);
             toast.info("No account found. Please sign up first.");
-            navigate(navigateWithQueryParams('/accounts/signup'));
             return;
           }
 
@@ -483,8 +486,8 @@ function Signin({
             return;
           }
 
-          // If email doesn't exist, redirect to signup
           if (!emailVerifyResponse.data.email_exists) {
+            toast.info("No account found. Please sign up first.");
             const user: SocialUser = {
               name: callbackResponse.data.name || "",
               email: email,
@@ -494,8 +497,8 @@ function Signin({
             };
             localStorage.setItem('socialuser', JSON.stringify(user));
             localStorage.removeItem('github_oauth_state');
-            toast.info("No account found. Please sign up first.");
-            navigate(navigateWithQueryParams('/accounts/signup'));
+            setSocialUser(user);
+            setShowSocialSignup(true);
             return;
           }
 
@@ -1596,6 +1599,14 @@ function Signin({
     }
   };
 
+  const handleBackFromSocialSignup = () => {
+    localStorage.clear();
+    removeAllCookies();
+    navigate(window.location.pathname, { replace: true });
+    setShowSocialSignup(false);
+    setSocialUser(null);
+  };
+
   return (
     <div className={cn("w-full min-w-md mx-auto relative", className)} {...props}>
       {show2FA ? (
@@ -1626,6 +1637,11 @@ function Signin({
           }}
           isLoading={isSSOLoading}
           error={ssoError}
+        />
+      ) : showSocialSignup && socialUser ? (
+        <CompleteSocialSignupForm
+          socialUser={socialUser}
+          onBack={handleBackFromSocialSignup}
         />
       ) : (
         <>

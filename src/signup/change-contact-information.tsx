@@ -199,7 +199,7 @@ function ChangeContactInformation({
     <div className={cn("w-full max-w-md mx-auto", className)} {...props}>
       <Card className="border-gray-800/50 backdrop-blur-sm form-fade-in" style={{ backgroundColor: 'var(--signup-card-bg)' }}>
         <CardHeader className="text-left space-y-2">
-          <div className="mb-2 flex items-center gap-3">
+          <div className="flex items-center gap-3">
             <button
               type="button"
               onClick={handleBack}
@@ -213,7 +213,7 @@ function ChangeContactInformation({
               Change Contact Information
             </CardTitle>
           </div>
-          <CardDescription className="text-gray-400 mt-4">
+          <CardDescription className="text-gray-400">
             Update your phone number or email address to receive new verification codes
           </CardDescription>
         </CardHeader>
@@ -226,7 +226,7 @@ function ChangeContactInformation({
                   "transition-opacity duration-200",
                   changeContactType === 'email' && "opacity-50 pointer-events-none cursor-not-allowed"
                 )}>
-                  <div>
+                  <div className={cn(phoneError && changeContactType === 'mobile' && "react-tel-input-error")}>
                     <PhoneInput
                       key={phoneInputKey}
                       countryCodeEditable={false}
