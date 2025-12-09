@@ -56,7 +56,7 @@ function PasswordResetRequestForm({ className }: PasswordResetRequestFormProps) 
   const [resendCountdown, setResendCountdown] = useState(0);
   const [isResending, setIsResending] = useState(false);
 
-  const RECAPTCHA_V2_SITE_KEY = "6LeJ7_4jAAAAAKqjyjQ2jEC4yJenDE6R8KyTu9Mt";
+  const RECAPTCHA_V2_SITE_KEY = "6LeBwBMsAAAAAEl2Qh4OlYJClOMVbBrJovxQL0l1";
 
   // Redirect if already logged in
   useEffect(() => {
@@ -319,7 +319,7 @@ function PasswordResetRequestForm({ className }: PasswordResetRequestFormProps) 
 
 // Wrapper with reCAPTCHA provider
 const PasswordResetRequest = (props: React.ComponentProps<"div">) => {
-  const recaptchaSiteKey = "6LeJ7_4jAAAAAKqjyjQ2jEC4yJenDE6R8KyTu9Mt";
+  const recaptchaSiteKey = "6LeBwBMsAAAAAEl2Qh4OlYJClOMVbBrJovxQL0l1";
   
   return (
     <GoogleReCaptchaProvider reCaptchaKey={recaptchaSiteKey}>

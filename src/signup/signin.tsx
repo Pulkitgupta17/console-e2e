@@ -794,6 +794,7 @@ function Signin({
             removeCookie('token');
             removeCookie('apikey');
             dispatch(logout());
+            navigate("/accounts/signin");
             localStorage.removeItem("logininprogress");
           }
         } else {
@@ -1238,6 +1239,7 @@ function Signin({
     setError(null);
     hasRequestedOTP.current = false; // Reset OTP flag
     localStorage.removeItem("logininprogress"); // Remove flag when cancelling 2FA
+    navigate("/accounts/signin");
   };
 
   const handleCancelGA = () => {
@@ -1250,6 +1252,7 @@ function Signin({
     setError(null);
     setGaRecaptchaToken("");
     setLoginResponseData(null);
+    navigate("/accounts/signin");
   };
 
   const handleVerifyGA = async (code: string, isBackupCode: boolean): Promise<void> => {
@@ -1677,8 +1680,7 @@ function Signin({
 
 // ReCaptcha Provider Wrapper
 const SigninWithRecaptcha = (props: React.ComponentProps<"div">) => {
-  const siteKey = "6LeJ7_4jAAAAAKqjyjQ2jEC4yJenDE6R8KyTu9Mt";
-  
+  const siteKey = "6LeBwBMsAAAAAEl2Qh4OlYJClOMVbBrJovxQL0l1";
   if (!siteKey) {
     console.error("VITE_RECAPTCHA_V3_SITE_KEY is not set");
     return (

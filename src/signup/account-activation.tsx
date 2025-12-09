@@ -536,7 +536,7 @@ function AccountActivation({
     return null;
   }
 
-  const recaptchaSiteKey = "6LeJ7_4jAAAAAKqjyjQ2jEC4yJenDE6R8KyTu9Mt";
+  const recaptchaSiteKey = "6LeBwBMsAAAAAEl2Qh4OlYJClOMVbBrJovxQL0l1";
 
   if (!recaptchaSiteKey) {
     console.error("reCAPTCHA site key is not set");

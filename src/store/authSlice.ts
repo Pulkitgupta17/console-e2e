@@ -123,7 +123,7 @@ export function logoutUser(): any {
   localStorage.clear();
   const cookiesToBeRemoved = ['apikey', 'token', 'theme', 'email', 'user'];
   cookiesToBeRemoved.forEach((cookie: any) => removeCookie(cookie));
-  window.location.href = BASE_URL;
+  // window.location.href = BASE_URL;
 }
 
 export function validateUser(): boolean {

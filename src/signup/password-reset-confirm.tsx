@@ -88,6 +88,7 @@ function PasswordResetConfirm({ className }: PasswordResetConfirmProps) {
 
       if (token && apikey) {
         dispatch(logout());
+        navigate('/accounts/signin');
         localStorage.removeItem('logininprogress');
       }
     };
