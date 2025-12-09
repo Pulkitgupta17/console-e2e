@@ -19,7 +19,7 @@ import { useAppDispatch } from "@/store/store"
 import { login as loginAction, type User } from "@/store/authSlice"
 import type { SocialUser, OtpStatus } from "@/interfaces/signupInterface"
 import { NOTEBOOK_URL } from "@/constants/global.constants"
-import { postCrossDomainMessage, setSessionTimeCookie, processOtpPaste, createOtpPasteHandler, createOtpKeyDownHandler, setUTMResource } from "@/services/commonMethods"
+import { postCrossDomainMessage, setSessionTimeCookie, processOtpPaste, createOtpPasteHandler, createOtpKeyDownHandler, setUTMResource, removeAllCookies } from "@/services/commonMethods"
 
 interface SocialOtpVerificationProps extends React.ComponentProps<"div"> {
   onBack?: () => void;
@@ -372,11 +372,11 @@ function SocialOtpVerification({
                 />
                 <label htmlFor="terms-otp" className="text-sm text-gray-400">
                   By continuing you agree to the{" "}
-                  <a href="#" className="text-cyan-400 hover:text-cyan-300">
+                  <a href="https://www.e2enetworks.com/policies/terms-of-service" className="text-cyan-400 hover:text-cyan-300" target="_blank">
                     terms
                   </a>{" "}
                   and{" "}
-                  <a href="#" className="text-cyan-400 hover:text-cyan-300">
+                  <a href="https://www.e2enetworks.com/policies/privacy-policy" className="text-cyan-400 hover:text-cyan-300" target="_blank">
                     privacy policy
                   </a>
                   .
@@ -401,7 +401,11 @@ function SocialOtpVerification({
               Already have an account?{" "}
               <button
                 type="button"
-                onClick={() => navigate('/accounts/signin')}
+                onClick={() => {
+                  localStorage.clear();
+                  removeAllCookies();
+                  navigate('/accounts/signin');
+                }}
                 className="text-cyan-400 hover:text-cyan-300"
               >
                 Sign in

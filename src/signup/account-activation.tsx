@@ -20,7 +20,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom'
 import { GoogleReCaptchaProvider, useGoogleReCaptcha } from "react-google-recaptcha-v3";
 import { verifyContactPersonToken, sendOtpPhone } from "@/services/signupService";
 import { toast } from "sonner";
-import { getCookie, calculatePasswordStrength } from "@/services/commonMethods";
+import { getCookie, calculatePasswordStrength, removeAllCookies } from "@/services/commonMethods";
 import MobileOtpActivation from "@/signup/mobile-otp-activation";
 import type { VerifyContactPersonResponse, SendOtpPhonePayload } from "@/interfaces/signupInterface";
 import { MYACCOUNT_URL } from "@/constants/global.constants"
@@ -213,7 +213,7 @@ function AccountActivationForm({ token, customerData, onOtpSent }: AccountActiva
           <Input
             {...register("firstName")}
             type="text"
-            placeholder="First Name"
+            placeholder="First Name *"
             variant="primary"
             size="xl"
             className={errors.firstName ? "border-red-500" : ""}
@@ -226,7 +226,7 @@ function AccountActivationForm({ token, customerData, onOtpSent }: AccountActiva
           <Input
             {...register("lastName")}
             type="text"
-            placeholder="Last Name"
+            placeholder="Last Name *"
             variant="primary"
             size="xl"
             className={errors.lastName ? "border-red-500" : ""}
@@ -289,7 +289,7 @@ function AccountActivationForm({ token, customerData, onOtpSent }: AccountActiva
                 setPhoneError(null);
               }
             }}
-            placeholder="Mobile Number"
+            placeholder="Mobile Number *"
             inputClass={`!w-full !h-11 !bg-gray-800/50 ${errors.phone || phoneError ? '!border-red-500 focus:!border-red-500' : '!border-gray-700'} !text-white !rounded-md !px-4 !py-2`}
             containerClass={cn("phone-input-container", phoneError && "phone-input-error")}
             buttonClass={`!bg-gray-800/50 ${errors.phone || phoneError ? '!border-red-500' : '!border-gray-700'}`}
@@ -305,7 +305,7 @@ function AccountActivationForm({ token, customerData, onOtpSent }: AccountActiva
           <Input
             {...register("password")}
             type={showPassword ? "text" : "password"}
-            placeholder="Password"
+            placeholder="Password *"
             variant="primary"
             size="xl"
             className={errors.password ? "border-red-500 pr-10" : "pr-10"}
@@ -377,7 +377,7 @@ function AccountActivationForm({ token, customerData, onOtpSent }: AccountActiva
           <Input
             {...register("confirmPassword")}
             type={showConfirmPassword ? "text" : "password"}
-            placeholder="Confirm Password"
+            placeholder="Confirm Password *"
             variant="primary"
             size="xl"
             className={errors.confirmPassword || (passwordCheck && password !== confirmPassword) ? "border-red-500 pr-10" : "pr-10"}
@@ -504,7 +504,11 @@ function AccountActivation({
           <CardContent>
             <p className="text-gray-400 text-sm mb-7">{invalidMessage}</p>
             <Button
-              onClick={() => navigate('/accounts/signin')}
+              onClick={() => {
+                localStorage.clear();
+                removeAllCookies();
+                navigate('/accounts/signin');
+              }}
               variant="signup"
               size="xl"
               className="w-full"

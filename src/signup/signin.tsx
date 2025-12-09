@@ -245,7 +245,11 @@ const LoginForm: React.FC<{
                 Don&apos;t have an account?{" "}
                 <button
                   type="button"
-                  onClick={() => navigate(navigateWithQueryParams('/accounts/signup'))}
+                  onClick={() => {
+                    localStorage.clear();
+                    removeAllCookies();
+                    navigate(navigateWithQueryParams('/accounts/signup'))}
+                  }
                   className="text-cyan-400 hover:text-cyan-300"
                 >
                   Sign up
@@ -445,7 +449,9 @@ function Signin({
 
             // Dispatch to Redux (saves to cookies + localStorage)
             dispatch(loginAction({ token, apiKey, user }));
-
+            if (userKey.phone) {
+              setUserPhone(userKey.phone);
+            }
             // Clean URL
             window.history.replaceState({}, document.title, '/accounts/signin');
 
@@ -532,7 +538,9 @@ function Signin({
 
             // Dispatch to Redux (saves to cookies + localStorage)
             dispatch(loginAction({ token, apiKey, user }));
-
+            if (userKey.phone) {
+              setUserPhone(userKey.phone);
+            }
             // Clean URL
             window.history.replaceState({}, document.title, '/accounts/signin');
             localStorage.removeItem('github_oauth_state');

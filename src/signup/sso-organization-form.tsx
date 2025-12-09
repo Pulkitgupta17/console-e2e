@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input"
 import { cn } from "@/lib/utils"
 import { useState, useEffect } from "react"
 import { useNavigate } from "react-router-dom"
-import { navigateWithQueryParams } from "@/services/commonMethods"
+import { navigateWithQueryParams, removeAllCookies } from "@/services/commonMethods"
 
 interface SSOOrganizationFormProps {
   onSubmit: (organizationId: string) => Promise<void>;
@@ -117,7 +117,12 @@ function SSOOrganizationForm({
               Don&apos;t have an account?{" "}
               <button
                 type="button"
-                onClick={() => navigate(navigateWithQueryParams('/accounts/signup'))}
+                onClick={() => 
+                  {
+                    localStorage.clear();
+                    removeAllCookies();
+                    navigate(navigateWithQueryParams('/accounts/signup'));
+                  }}
                 className="text-cyan-400 hover:text-cyan-300"
               >
                 Sign up

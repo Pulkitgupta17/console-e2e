@@ -291,11 +291,11 @@ const maskPhoneNumber = (phone: string): string => {
               />
               <label htmlFor="terms-otp-activation" className="text-sm text-gray-400">
                 By continuing you agree to the{" "}
-                <a href="#" className="text-cyan-400 hover:text-cyan-300">
+                <a href="https://www.e2enetworks.com/policies/terms-of-service" className="text-cyan-400 hover:text-cyan-300" target="_blank">
                   terms
                 </a>{" "}
                 and{" "}
-                <a href="#" className="text-cyan-400 hover:text-cyan-300">
+                <a href="https://www.e2enetworks.com/policies/privacy-policy" className="text-cyan-400 hover:text-cyan-300">
                   privacy policy
                 </a>
                 .

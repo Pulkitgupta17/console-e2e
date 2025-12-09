@@ -19,10 +19,10 @@ import { z } from "zod";
 import { Eye, EyeOff, Check, X } from "lucide-react";
 import { useNavigate } from 'react-router-dom'
 import { GoogleReCaptchaProvider, useGoogleReCaptcha } from "react-google-recaptcha-v3";
-import { customerDetailsVerification, sendOtpEmail, googleCallback } from "@/services/signupService";
+import { customerDetailsVerification, sendOtpEmail, googleCallback, verifySocialEmail } from "@/services/signupService";
 import { toast } from "sonner";
 import type { SignupData, OtpStatus, SocialUser } from "@/interfaces/signupInterface";
-import { getCookie, removeCookie, calculatePasswordStrength, captureUTMParameters } from "@/services/commonMethods";
+import { getCookie, removeCookie, calculatePasswordStrength, captureUTMParameters, removeAllCookies } from "@/services/commonMethods";
 import CompleteSocialSignupForm from "./complete-social-signup";
 import { Spinner } from '@/components/ui/shadcn-io/spinner';
 import { MYACCOUNT_URL } from "@/constants/global.constants"
@@ -38,7 +38,7 @@ declare global {
 const schema = z.object({
   name: z.string()
     .min(1, { message: "Name is required" })
-    .regex(/^[a-zA-Z\s]+$/, { message: "NFull name should contain only alphabets." }),
+    .regex(/^[a-zA-Z\s]+$/, { message: "Name should contain only alphabets." }),
   email: z.string().email({ message: "Invalid email address" }),
   password: z.string().min(8, { message: "Password must be at least 8 characters long" }),
 });
@@ -62,7 +62,7 @@ function SignupForm({
   
   // Key to force remount when countries data changes - changes when data loads or list updates
   const phoneInputKey = `phone-${countriesList.length}-${countriesLoading}-${onlyCountriesProp?.join(',') || 'empty'}`;
-  const { register, handleSubmit, watch, formState: {isSubmitting, isValid, errors} } = useForm<FormFields>({
+  const { register, handleSubmit, watch, formState: {isSubmitting, isValid, errors, touchedFields} } = useForm<FormFields>({
     defaultValues: {
       name: "",
       email: "",
@@ -164,6 +164,23 @@ function SignupForm({
 
           // Store social user in state (not localStorage to keep on same page)
           setSocialUser(user);
+          
+          // Step 2: Verify email exists
+          const emailVerifyResponse = await verifySocialEmail(response.data.email);
+
+          if (emailVerifyResponse.code !== 200) {
+            toast.error("Failed to verify email");
+            localStorage.removeItem('logininprogress');
+            return;
+          }
+
+          if (emailVerifyResponse.data.email_exists) {
+            toast.info("An account is already registered with this Email ID. Please do the sign in.");
+            navigate('/accounts/signin');
+            localStorage.clear();
+            removeAllCookies();
+            return;
+          }
           setShowSocialSignup(true);
           localStorage.removeItem('logininprogress');
 
@@ -212,6 +229,23 @@ function SignupForm({
 
           // Store social user in state (not localStorage to keep on same page)
           setSocialUser(user);
+
+          // Step 2: Verify email exists
+          const emailVerifyResponse = await verifySocialEmail(response.data.email);
+
+          if (emailVerifyResponse.code !== 200) {
+            toast.error("Failed to verify email");
+            localStorage.removeItem('github_oauth_state');
+            return;
+          }
+
+          if (emailVerifyResponse.data.email_exists) {
+            toast.info("An account is already registered with this Email ID. Please do the sign in.");
+            navigate('/accounts/signin');
+            localStorage.clear();
+            removeAllCookies();
+            return;
+          }
           setShowSocialSignup(true);
           localStorage.removeItem('logininprogress');
           localStorage.removeItem('github_oauth_state');
@@ -521,7 +555,7 @@ function SignupForm({
                 <Input
                   id="name"
                   type="text"
-                  placeholder="Enter your name"
+                  placeholder="Enter your name *"
                   variant="primary"
                   size="xl"
                   required
@@ -554,7 +588,6 @@ function SignupForm({
                       setPhoneError(null); // Clear error when user types
                     }}
                     onBlur={() => {
-                      // Validate on blur
                       if (phoneNumber) {
                         try {
                           const phoneNumberWithCountry = phoneNumber.startsWith('+') ? phoneNumber : `+${phoneNumber}`;
@@ -572,7 +605,7 @@ function SignupForm({
                         setPhoneError(null);
                       }
                     }}
-                    placeholder="Mobile No."
+                    placeholder="Mobile No. *"
                     inputProps={{
                       autoComplete: 'off',
                     }}
@@ -588,15 +621,15 @@ function SignupForm({
                 <Input
                   id="email"
                   type="email"
-                  placeholder="Enter your email"
+                  placeholder="Enter your email *"
                   variant="primary"
                   size="xl"
                   required
                   autoComplete="off"
-                  className={errors.email ? "border-red-500 focus-visible:border-red-500 focus-visible:ring-red-500/20" : ""}
+                  className={errors.email && touchedFields.email ? "border-red-500 focus-visible:border-red-500 focus-visible:ring-red-500/20" : ""}
                   {...register("email")}
                 />
-                {errors.email && (
+                {errors.email && touchedFields.email && (
                   <p className="text-red-400 text-xs mt-1">{errors.email.message}</p>
                 )}
               </div>
@@ -606,7 +639,7 @@ function SignupForm({
                   <Input
                     id="password"
                     type={showPassword ? "text" : "password"}
-                    placeholder="Create a password"
+                    placeholder="Create a password *"
                     variant="primary"
                     size="xl"
                     className={errors.password ? "pr-10 border-red-500 focus-visible:border-red-500 focus-visible:ring-red-500/20" : "pr-10"}
@@ -712,7 +745,11 @@ function SignupForm({
                 Already have an account?{" "}
                 <button
                   type="button"
-                  onClick={() => navigate('/accounts/signin')}
+                  onClick={() => {
+                    localStorage.clear();
+                    removeAllCookies();
+                    navigate('/accounts/signin');
+                  }}
                   className="text-cyan-400 hover:text-cyan-300"
                 >
                   Sign in

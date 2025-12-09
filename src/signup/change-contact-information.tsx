@@ -82,7 +82,8 @@ function ChangeContactInformation({
   }
 
   const isDisabled = () => {
-    const phoneChanged = signupData.phone !== phoneNumber;
+    const formattedPhoneNumber = phoneNumber.startsWith("+") ? phoneNumber : `+${phoneNumber}`;
+    const phoneChanged = signupData.phone !== formattedPhoneNumber;
     const emailChanged = signupData.email !== watchedEmail;
     const emailError = changeContactType === 'email' && (!isEmailValid || !!emailErrors.email);
     return (!phoneChanged && !emailChanged) || isSubmitting || (changeContactType === 'mobile' && !!phoneError) || emailError;
@@ -213,7 +214,7 @@ function ChangeContactInformation({
               Change Contact Information
             </CardTitle>
           </div>
-          <CardDescription className="text-gray-400">
+          <CardDescription className="text-gray-400 mt-2">
             Update your phone number or email address to receive new verification codes
           </CardDescription>
         </CardHeader>
@@ -237,7 +238,6 @@ function ChangeContactInformation({
                       preferredCountries={['us', 'in', 'uk']}
                       onChange={(value, countryData) => {
                         setPhoneNumber(value);
-                        // Extract country code from countryData object
                         const countryCode = (countryData as any)?.countryCode?.toLowerCase() || 
                                            (countryData as any)?.iso2?.toLowerCase() || 
                                            'in';
@@ -263,7 +263,7 @@ function ChangeContactInformation({
                           setPhoneError(null);
                         }
                       }}
-                      placeholder="Mobile No."
+                      placeholder="Mobile No. *"
                       disabled={changeContactType === 'email'}
                       containerClass={cn("phone-input-container", phoneError && changeContactType === 'mobile' && "phone-input-error")}
                     />
@@ -275,12 +275,12 @@ function ChangeContactInformation({
               </div>
             </div>
 
-            <div className="space-y-4 mb-12">
+            <div className="space-y-4 mb-8">
               <div className="space-y-2">
                 {/* <label className="text-sm font-medium text-white">Email Address</label> */}
                 <Input
                   type="email"
-                  placeholder="Email"
+                  placeholder="Email *"
                   variant="primary"
                   size="xl"
                   disabled={changeContactType === 'mobile'}
@@ -293,10 +293,10 @@ function ChangeContactInformation({
               </div>
             </div>
 
-            <div className="bg-gray-800/50 border border-gray-700 rounded-md p-4">
-              <div className="flex items-start gap-2">
-                <p className="text-sm text-gray-300">
-                  New verification codes will be sent to any contact information you change.
+            <div className="rounded-md">
+              <div className="flex items-start gap-1">
+                <p className="text-sm text-gray-400">
+                  New verification codes will be sent to both the phone number and email address.
                 </p>
               </div>
             </div>

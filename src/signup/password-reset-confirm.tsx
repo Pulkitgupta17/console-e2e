@@ -15,7 +15,7 @@ import { useForm, type SubmitHandler } from "react-hook-form"
 import { z } from "zod"
 import { toast } from "sonner"
 import { Eye, EyeOff, Check, X } from "lucide-react"
-import { getCookie, calculatePasswordStrength } from "@/services/commonMethods"
+import { getCookie, calculatePasswordStrength, removeAllCookies } from "@/services/commonMethods"
 import { useAppDispatch } from "@/store/store"
 import { logout } from "@/store/authSlice"
 import { verifyPasswordResetToken, confirmPasswordReset } from "@/services/signupService"
@@ -210,7 +210,11 @@ function PasswordResetConfirm({ className }: PasswordResetConfirmProps) {
             <p className="text-center text-gray-400 text-sm mt-6">
               <button
                 type="button"
-                onClick={() => navigate('/accounts/signin')}
+                onClick={() => {
+                  localStorage.clear();
+                  removeAllCookies();
+                  navigate('/accounts/signin');
+                }}
                 className="text-cyan-400 hover:text-cyan-300"
               >
                 Back to Sign In
@@ -244,7 +248,11 @@ function PasswordResetConfirm({ className }: PasswordResetConfirmProps) {
               variant="signup" 
               size="xl"
               className="w-full"
-              onClick={() => navigate('/accounts/signin')}
+              onClick={() => {
+                localStorage.clear();
+                removeAllCookies();
+                navigate('/accounts/signin');
+              }}
             >
               Go to Sign In
             </Button>
@@ -386,7 +394,11 @@ function PasswordResetConfirm({ className }: PasswordResetConfirmProps) {
                 Remember your password?{" "}
                 <button
                   type="button"
-                  onClick={() => navigate('/accounts/signin')}
+                  onClick={() => {
+                    localStorage.clear();
+                    removeAllCookies();
+                    navigate('/accounts/signin');
+                  }}
                   className="text-cyan-400 hover:text-cyan-300"
                 >
                   Sign in
