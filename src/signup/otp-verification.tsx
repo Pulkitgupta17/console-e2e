@@ -11,6 +11,7 @@ import { cn } from "@/lib/utils"
 import { useState, useEffect } from "react"
 import { useNavigate } from "react-router-dom"
 import { toast } from "sonner"
+import { Cloud } from "lucide-react"
 import ChangeContactInformation from "./change-contact-information"
 import { 
   verifyOtp, 
@@ -52,6 +53,8 @@ function OtpVerification({
   const [canResendEmail, setCanResendEmail] = useState(false);
   const [showChangeContact, setShowChangeContact] = useState(false);
   const [termsAccepted, setTermsAccepted] = useState(false);
+  const [showLoadingScreen, setShowLoadingScreen] = useState(false);
+  const [loadingDots, setLoadingDots] = useState('');
 
   // Mobile OTP Timer countdown
   useEffect(() => {
@@ -76,6 +79,19 @@ function OtpVerification({
       setCanResendEmail(true);
     }
   }, [emailTimer]);
+
+  // Loading dots animation
+  useEffect(() => {
+    if (showLoadingScreen) {
+      const interval = setInterval(() => {
+        setLoadingDots((prev) => {
+          if (prev === '...') return '';
+          return prev + '.';
+        });
+      }, 500);
+      return () => clearInterval(interval);
+    }
+  }, [showLoadingScreen]);
 
   const handleOtpChange = (
     index: number, 
@@ -302,10 +318,14 @@ function OtpVerification({
         // Remove login progress flag before navigating
         localStorage.removeItem("logininprogress");
         
-        // Navigate to dashboard
+        // Show loading screen
+        setShowLoadingScreen(true);
+        
+        // Navigate to notebook URL after a brief delay
         setTimeout(() => {
-          navigate("/");
-        }, 500);
+          const notebookUrl = import.meta.env.VITE_NOTEBOOK_URL || window.location.origin;
+          window.location.href = notebookUrl;
+        }, 2000);
       } else {
         toast.error("Failed to retrieve authentication data");
       }
@@ -325,6 +345,33 @@ function OtpVerification({
   const handleBackFromContactChange = () => {
     setShowChangeContact(false);
   };
+
+  // Show loading screen if signup is successful
+  if (showLoadingScreen) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-screen w-full">
+        <div className="flex flex-col items-center space-y-8 px-4 relative z-10">
+          {/* Animated logo/icon */}
+          <div className="relative">
+            <div className="absolute inset-0 bg-white rounded-full blur-xl opacity-20 animate-pulse"></div>
+            <div className="relative bg-white rounded-full p-8">
+              <Cloud className="text-black animate-pulse" size={64} />
+            </div>
+          </div>
+
+          {/* Loading text */}
+          <div className="text-center space-y-4">
+            <h1 className="text-white text-2xl md:text-3xl tracking-wide">
+              Please wait while we are preparing your profile{loadingDots}
+            </h1>
+            <p className="text-gray-400 text-lg">
+              Syncing with the cloud and initializing AI systems
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   // Show change contact form if state is true
   if (showChangeContact) {
