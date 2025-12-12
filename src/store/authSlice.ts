@@ -87,6 +87,7 @@ const authSlice = createSlice({
       setCookie('token', action.payload.token);
       setCookie('apikey', action.payload.apiKey);
       setCookie('user', action.payload.user);
+      setCookie('email', action.payload.user.email);
     },
     logout: (state) => {
       state.token = null;
@@ -132,7 +133,6 @@ export function validateUser(): boolean {
       const token = getCookie('token');
       const decoded: any = jwtDecode(token);
       return decoded;
-
     } else {
       throw new Error('Unable to find token or api key');
     }

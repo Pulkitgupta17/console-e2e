@@ -326,7 +326,7 @@ function SignupForm({
       localStorage.setItem("logininprogress", "yes");
 
       // Get reCAPTCHA token
-      const recaptchaToken = await executeRecaptcha("signup");
+      const recaptchaToken = await executeRecaptcha("otp");
 
       // Format phone number with +
       const formattedPhone = phoneNumber.startsWith("+") ? phoneNumber : `+${phoneNumber}`;
@@ -766,7 +766,7 @@ function SignupForm({
 
 // ReCaptcha Provider Wrapper
 const Signup = (props: React.ComponentProps<"div">) => {
-  const recaptchaSiteKey = "6LeBwBMsAAAAAEl2Qh4OlYJClOMVbBrJovxQL0l1";
+  const recaptchaSiteKey = "6LdJ4SYsAAAAAE6o7fGLD287tW__WDlCqX3Iuf3R";
   
   if (!recaptchaSiteKey) {
     console.error("reCAPTCHA site key is not set");

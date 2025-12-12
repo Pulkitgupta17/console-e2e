@@ -139,7 +139,7 @@ function CompleteSocialSignupForm({
       localStorage.setItem("logininprogress", "yes");
 
       // Get reCAPTCHA token
-      const recaptchaToken = await executeRecaptcha("social_signup");
+      const recaptchaToken = await executeRecaptcha("otp");
 
       // Format phone number with +
       const formattedPhone = phoneNumber.startsWith("+") ? phoneNumber : `+${phoneNumber}`;
@@ -357,7 +357,7 @@ function CompleteSocialSignupForm({
                     <a href="https://www.e2enetworks.com/policies/privacy-policy" className="text-cyan-400 hover:text-cyan-300" target="_blank">
                       privacy policy
                     </a>
-                    .
+                    .<span className="text-red-400 ml-1">*</span>
                   </label>
                 </div>
               </div>

@@ -22,7 +22,7 @@ import { verifyPasswordResetToken, confirmPasswordReset } from "@/services/signu
 
 const schema = z.object({
   password: z.string().min(8, { message: "Password must be at least 8 characters long" }),
-  confirmPassword: z.string().min(1, { message: "Please confirm your password" }),
+  confirmPassword: z.string().min(8, { message: "Please confirm your password" }),
 }).refine((data) => data.password === data.confirmPassword, {
   message: "Passwords do not match",
   path: ["confirmPassword"],
@@ -57,6 +57,7 @@ function PasswordResetConfirm({ className }: PasswordResetConfirmProps) {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [samePreviousPassword, setSamePreviousPassword] = useState(false);
+  const [confirmPasswordTouched, setConfirmPasswordTouched] = useState(false);
 
   const password = watch("password");
   const confirmPassword = watch("confirmPassword");
@@ -352,7 +353,11 @@ function PasswordResetConfirm({ className }: PasswordResetConfirmProps) {
                     size="xl"
                     className={`pr-10 ${errors.confirmPassword ? "border-red-500 focus-visible:border-red-500 focus-visible:ring-red-500/20" : ""}`}
                     required
-                    {...register("confirmPassword")}
+                    {...register("confirmPassword", {
+                      onChange: () => {
+                        setConfirmPasswordTouched(true);
+                      }
+                    })}
                   />
                   <button
                     type="button"
@@ -367,13 +372,13 @@ function PasswordResetConfirm({ className }: PasswordResetConfirmProps) {
                   <p className="text-red-400 text-xs mt-1">{errors.confirmPassword.message}</p>
                 )}
                 
-                {passwordsMatch && (
+                {passwordsMatch && confirmPassword && (
                   <p className="text-emerald-400 text-xs mt-1 flex items-center gap-1">
                     <Check className="h-3 w-3" />
                     Passwords match
                   </p>  
                 )}
-                {!passwordsMatch && (
+                {!passwordsMatch && confirmPasswordTouched && confirmPassword && (
                   <p className="text-red-400 text-xs mt-1 flex items-center gap-1">
                     <X className="h-3 w-3" />
                     Passwords do not match

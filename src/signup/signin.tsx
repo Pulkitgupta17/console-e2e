@@ -720,7 +720,7 @@ function Signin({
 
       try {
         hasRequestedOTP.current = true;
-        const recaptchaToken = await executeRecaptcha("request_otp");
+        const recaptchaToken = await executeRecaptcha("otp");
         await handleRequestOTP(recaptchaToken);
       } catch (error) {
         hasRequestedOTP.current = false; 
@@ -759,7 +759,7 @@ function Signin({
       if (executeRecaptcha) {
         try {
           hasRequestedOTP.current = true;
-          const recaptchaToken = await executeRecaptcha("request_otp");
+          const recaptchaToken = await executeRecaptcha("otp");
           await handleRequestOTP(recaptchaToken);
         } catch (error) {
           hasRequestedOTP.current = false; // Reset so useEffect can retry
@@ -1592,7 +1592,7 @@ function Signin({
     }
 
     try {
-      const recaptchaToken = await executeRecaptcha("resend_otp");
+      const recaptchaToken = await executeRecaptcha("otp");
       const payload: any = {
         recaptcha: recaptchaToken,
         version: "v3",
@@ -1680,7 +1680,7 @@ function Signin({
 
 // ReCaptcha Provider Wrapper
 const SigninWithRecaptcha = (props: React.ComponentProps<"div">) => {
-  const siteKey = "6LeBwBMsAAAAAEl2Qh4OlYJClOMVbBrJovxQL0l1";
+  const siteKey = "6LdJ4SYsAAAAAE6o7fGLD287tW__WDlCqX3Iuf3R";
   if (!siteKey) {
     console.error("VITE_RECAPTCHA_V3_SITE_KEY is not set");
     return (

@@ -142,7 +142,7 @@ function ChangeContactInformation({
         return;
       }
 
-      const recaptchaToken = await executeRecaptcha("resend_otp");
+      const recaptchaToken = await executeRecaptcha("otp");
       promises.push(
         customerDetailsVerification({
           email: data.email,

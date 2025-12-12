@@ -210,7 +210,7 @@ export const verifyContactPersonToken = async (token: string): Promise<VerifyCon
   const response = await PublicAPI.get(
     `accounts/verify-contact-person/${token}` // token already includes ?token=
   );
-  return response.data;
+  return response.data?.data;
 };
 
 export const sendOtpPhone = async (payload: SendOtpPhonePayload) => {

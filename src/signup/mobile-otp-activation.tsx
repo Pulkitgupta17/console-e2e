@@ -49,6 +49,7 @@ function MobileOtpActivation({
   const [timer, setTimer] = useState(60);
   const [canResend, setCanResend] = useState(false);
   const [resendAttempts, setResendAttempts] = useState(0);
+  const [termsAccepted, setTermsAccepted] = useState(false);
 
   useEffect(() => {
     if (timer > 0) {
@@ -104,7 +105,7 @@ function MobileOtpActivation({
     if (timer > 0 || !executeRecaptcha) return;
 
     try {
-      const recaptchaToken = await executeRecaptcha("resend_otp");
+      const recaptchaToken = await executeRecaptcha("otp");
 
       const resendPayload: any = {
         mobile: payload.mobile,
@@ -286,8 +287,10 @@ const maskPhoneNumber = (phone: string): string => {
               <input
                 type="checkbox"
                 id="terms-otp-activation"
-                required
                 className="mt-1 w-4 h-4 text-cyan-600 bg-gray-800 border-gray-700 rounded focus:ring-cyan-500 focus:ring-2"
+                checked={termsAccepted}
+                required
+                onChange={(e) => setTermsAccepted(e.target.checked)}
               />
               <label htmlFor="terms-otp-activation" className="text-sm text-gray-400">
                 By continuing you agree to the{" "}
@@ -295,10 +298,10 @@ const maskPhoneNumber = (phone: string): string => {
                   terms
                 </a>{" "}
                 and{" "}
-                <a href="https://www.e2enetworks.com/policies/privacy-policy" className="text-cyan-400 hover:text-cyan-300">
+                <a href="https://www.e2enetworks.com/policies/privacy-policy" className="text-cyan-400 hover:text-cyan-300" target="_blank">
                   privacy policy
                 </a>
-                .
+                .<span className="text-red-400 ml-1">*</span>
               </label>
             </div>
             
@@ -306,7 +309,11 @@ const maskPhoneNumber = (phone: string): string => {
               type="submit" 
               variant="signup" 
               size="xl"
-              disabled={isSubmitting}
+              disabled={
+                isSubmitting || 
+                !termsAccepted || 
+                otpValues.join('').length !== 6
+              }
               className="w-full"
             >
               {isSubmitting ? "Verifying..." : "Verify"}

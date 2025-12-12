@@ -47,6 +47,7 @@ function SocialOtpVerification({
   const [termsAccepted, setTermsAccepted] = useState(false);
   const [mobileTimer, setMobileTimer] = useState(60);
   const [canResendMobile, setCanResendMobile] = useState(false);
+  const [resendAttempts, setResendAttempts] = useState(0);
 
   // Mobile OTP Timer countdown
   useEffect(() => {
@@ -106,7 +107,7 @@ function SocialOtpVerification({
     }
 
     try {
-      const recaptchaToken = await executeRecaptcha("resend_otp");
+      const recaptchaToken = await executeRecaptcha("otp");
 
       const payload: any = {
         email: socialUser.email,
@@ -125,6 +126,10 @@ function SocialOtpVerification({
       toast.success(type === 'voice' ? "OTP will be sent via call" : "Mobile OTP resent successfully");
       setMobileTimer(60);
       setCanResendMobile(false);
+      
+      if (type === 'sms') {
+        setResendAttempts(prev => prev + 1);
+      }
     } catch (error: any) {
       toast.error(error?.response?.data?.message || "Failed to resend mobile OTP");
     }
@@ -253,10 +258,10 @@ function SocialOtpVerification({
         localStorage.removeItem('socialuser');
 
         // Set CSRF token if available
-        if (userData.csrf_token) {
+        if (userData.CSRF_COOKIE) {
           const expiryDate = new Date();
           expiryDate.setDate(expiryDate.getDate() + 10);
-          document.cookie = `csrftoken=${userData.csrf_token}; expires=${expiryDate.toUTCString()}; path=/; SameSite=Strict`;
+          document.cookie = `csrftoken=${userData.CSRF_COOKIE}; expires=${expiryDate.toUTCString()}; path=/;`;
         }
 
         toast.success("Signup successful! Welcome to E2E Networks");
@@ -335,21 +340,34 @@ function SocialOtpVerification({
                 </div>
               </div>
               
-              <div className="flex justify-between text-sm">
-                {canResendMobile ? (
-                  <button 
-                    type="button" 
-                    onClick={() => handleResendMobile('sms')}
-                    className="text-cyan-400 hover:text-cyan-300 flex items-center gap-1"
-                  >
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                    </svg>
-                    Resend Code
-                  </button>
-                ) : (
-                  <span className="text-gray-400 whitespace-nowrap">Resend in {mobileTimer}s</span>
-                )}
+              <div className="flex justify-between items-center text-sm">
+                <div className="flex items-center gap-2">
+                  {canResendMobile ? (
+                    <button 
+                      type="button" 
+                      onClick={() => handleResendMobile('sms')}
+                      className="text-cyan-400 hover:text-cyan-300 flex items-center gap-1"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                      </svg>
+                      Resend Code
+                    </button>
+                  ) : (
+                    <span className="text-gray-400 whitespace-nowrap">Resend in {mobileTimer}s</span>
+                  )}
+                  
+                  {resendAttempts >= 2 && (
+                    <button 
+                      type="button"
+                      onClick={() => handleResendMobile('voice')}
+                      disabled={mobileTimer > 0}
+                      className={`text-sm ${mobileTimer > 0 ? 'text-gray-500 cursor-not-allowed' : 'text-cyan-400 hover:text-cyan-300'}`}
+                    >
+                      Get a call instead
+                    </button>
+                  )}
+                </div>
                 <button 
                   type="button" 
                   className="text-cyan-400 hover:text-cyan-300"
@@ -379,7 +397,7 @@ function SocialOtpVerification({
                   <a href="https://www.e2enetworks.com/policies/privacy-policy" className="text-cyan-400 hover:text-cyan-300" target="_blank">
                     privacy policy
                   </a>
-                  .
+                  .<span className="text-red-400 ml-1">*</span>
                 </label>
               </div>
             </div>

@@ -8,8 +8,8 @@
     "build": "tsc -b && vite build",
     "lint": "eslint .",
     "preview": "vite preview",
-    "stageBuild": "vite build --mode groot",
-    "deployStage": "sh src/deploy.sh -- groot",
+    "stageBuild": "vite build --mode loki",
+    "deployStage": "sh src/deploy.sh -- loki",
     "deployTest": "sh src/deploy.sh -- test"
   },
   "dependencies": {

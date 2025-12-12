@@ -15,7 +15,7 @@ import { parsePhoneNumber } from 'libphonenumber-js'
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
-import { Eye, EyeOff } from "lucide-react";
+import { Eye, EyeOff, Check, X } from "lucide-react";
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { GoogleReCaptchaProvider, useGoogleReCaptcha } from "react-google-recaptcha-v3";
 import { verifyContactPersonToken, sendOtpPhone } from "@/services/signupService";
@@ -28,17 +28,17 @@ import { useAppSelector } from "@/store/store"
 
 const schema = z.object({
   firstName: z.string()
-    .min(3, { message: "First name must be at least 3 characters" })
+    .min(1, { message: "First name must be at least 1 characters" })
     .max(100, { message: "First name must be at most 100 characters" })
-    .regex(/^[a-zA-Z\s-]+(\s{0,1}[a-zA-Z\s-])$/, { message: "Invalid first name format" }),
+    .regex(/^[a-zA-Z\s]+$/, { message: "Name should contain only alphabets." }),
   lastName: z.string()
-    .min(3, { message: "Last name must be at least 3 characters" })
+    .min(1, { message: "Last name must be at least 1 characters" })
     .max(100, { message: "Last name must be at most 100 characters" })
-    .regex(/^[a-zA-Z\s-]+(\s{0,1}[a-zA-Z\s-])$/, { message: "Invalid last name format" }),
+    .regex(/^[a-zA-Z\s]+$/, { message: "Name should contain only alphabets." }),
   password: z.string()
-    .min(16, { message: "Password must be at least 16 characters" })
+    .min(8, { message: "Password must be at least 8 characters" })
     .max(30, { message: "Password must be at most 30 characters" })
-    .regex(/^(?=\D*\d)(?=[^a-z]*[a-z])(?=[^A-Z]*[A-Z]).{16,30}$/, {
+    .regex(/^(?=\D*\d)(?=[^a-z]*[a-z])(?=[^A-Z]*[A-Z]).{8,30}$/, {
       message: "Password must contain uppercase, lowercase, and numbers"
     }),
   confirmPassword: z.string(),
@@ -72,7 +72,7 @@ function AccountActivationForm({ token, customerData, onOtpSent }: AccountActiva
   // Key to force remount when countries data changes
   const phoneInputKey = `phone-${countriesList.length}-${countriesLoading}-${onlyCountriesProp?.join(',') || 'empty'}`;
   
-  const { register, handleSubmit, watch, setValue, trigger, formState: { errors, isSubmitting, isValid } } = useForm<FormFields>({
+  const { register, handleSubmit, watch, setValue, trigger, formState: { errors, isSubmitting, isValid, touchedFields } } = useForm<FormFields>({
     defaultValues: {
       firstName: "",
       lastName: "",
@@ -91,25 +91,18 @@ function AccountActivationForm({ token, customerData, onOtpSent }: AccountActiva
   const [phoneError, setPhoneError] = useState<string | null>(null);
   const [selectedCountry, setSelectedCountry] = useState<string>('in');
   const [btnDisabled, setBtnDisabled] = useState(false);
-  const [passwordCheck, setPasswordCheck] = useState(false);
   const [showErrors, setShowErrors] = useState(false);
+  const [confirmPasswordTouched, setConfirmPasswordTouched] = useState(false);
 
   const password = watch("password");
   const confirmPassword = watch("confirmPassword");
 
   const passwordStrength = password ? calculatePasswordStrength(password, {
-    minLength: 16,
-    maxLength: 30,
-    requireSpecialChars: false,
+    minLength: 8,
+    requireSpecialChars: true,
   }) : null;
 
-  useEffect(() => {
-    if (password && confirmPassword) {
-      setPasswordCheck(password === confirmPassword);
-    } else {
-      setPasswordCheck(false);
-    }
-  }, [password, confirmPassword]);
+  const passwordsMatch = password && confirmPassword && password === confirmPassword;
 
   const onSubmit = async (data: FormFields) => {
     setShowErrors(true);
@@ -119,7 +112,6 @@ function AccountActivationForm({ token, customerData, onOtpSent }: AccountActiva
     }
 
     if (password !== confirmPassword) {
-      setPasswordCheck(true);
       return;
     }
 
@@ -182,8 +174,8 @@ function AccountActivationForm({ token, customerData, onOtpSent }: AccountActiva
       }
 
       onOtpSent({
-        first_name: data.firstName,
-        last_name: data.lastName,
+        first_name: data?.firstName,
+        last_name: data?.lastName,
         password: data.password,
         confirm_password: data.confirmPassword,
         email: customerData.email,
@@ -193,7 +185,6 @@ function AccountActivationForm({ token, customerData, onOtpSent }: AccountActiva
         mobile: formattedPhone,
       });
     } catch (error: any) {
-      console.error("Send OTP error:", error);
       const errorMsg = error?.response?.data?.message || 
                       error?.response?.data?.error || 
                       error?.response?.data?.errors ||
@@ -218,7 +209,7 @@ function AccountActivationForm({ token, customerData, onOtpSent }: AccountActiva
             size="xl"
             className={errors.firstName ? "border-red-500" : ""}
           />
-          {showErrors && errors.firstName && (
+          {(showErrors || touchedFields.firstName) && errors.firstName && (
             <p className="text-xs text-red-400">{errors.firstName.message}</p>
           )}
         </div>
@@ -231,7 +222,7 @@ function AccountActivationForm({ token, customerData, onOtpSent }: AccountActiva
             size="xl"
             className={errors.lastName ? "border-red-500" : ""}
           />
-          {showErrors && errors.lastName && (
+          {(showErrors || touchedFields.lastName) && errors.lastName && (
             <p className="text-xs text-red-400">{errors.lastName.message}</p>
           )}
         </div>
@@ -308,7 +299,7 @@ function AccountActivationForm({ token, customerData, onOtpSent }: AccountActiva
             placeholder="Password *"
             variant="primary"
             size="xl"
-            className={errors.password ? "border-red-500 pr-10" : "pr-10"}
+            className={errors.password ? "pr-10 border-red-500 focus-visible:border-red-500 focus-visible:ring-red-500/20" : "pr-10"}
           />
           <button
             type="button"
@@ -318,56 +309,37 @@ function AccountActivationForm({ token, customerData, onOtpSent }: AccountActiva
             {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
           </button>
         </div>
-        {showErrors && errors.password && (
+        {errors.password && (
           <p className="text-xs text-red-400">{errors.password.message}</p>
         )}
 
-        {/* Password Strength Indicator */}
-        {password && (
-          <div className="space-y-2 mt-3">
-            <div className="h-1.5 bg-gray-700 rounded-full overflow-hidden">
-              <div
-                className={`h-full bg-gradient-to-r ${passwordStrength?.color} transition-all duration-300`}
-                style={{ width: `${passwordStrength?.score || 0}%` }}
-              />
-            </div>
-            <div className="flex items-center justify-between text-xs">
-              <span className={`font-medium ${passwordStrength?.textColor}`}>
+        { password && (
+          <div className="space-y-2">
+            <div className="flex items-center gap-2">
+              <div className="flex-1 h-2 bg-gray-700 rounded-full overflow-hidden">
+                <div 
+                  className={`h-full bg-gradient-to-r ${passwordStrength?.color} transition-all duration-300`}
+                  style={{ width: `${passwordStrength?.score || 0}%` }}
+                />
+              </div>
+              <span className={`text-xs font-medium ${passwordStrength?.textColor}`}>
                 {passwordStrength?.strength}
               </span>
             </div>
-            {(() => {
-              const lengthMin = password.length >= 16;
-              const lengthMax = password.length <= 30;
-              const hasLower = /[a-z]/.test(password);
-              const hasUpper = /[A-Z]/.test(password);
-              const hasNumber = /\d/.test(password);
-              const items: Array<{label: string; passed: boolean}> = [
-                { label: 'Min 16 chars', passed: lengthMin },
-                { label: 'Max 30 chars', passed: lengthMax },
-                { label: 'Lowercase', passed: hasLower },
-                { label: 'Uppercase', passed: hasUpper },
-                { label: 'Numbers', passed: hasNumber },
-              ];
-              return (
-                <div className="grid grid-cols-2 gap-1 text-xs">
-                  {items.map(({ label, passed }) => (
-                    <div key={label} className={`flex items-center gap-1 ${passed ? 'text-emerald-400' : 'text-gray-500'}`}>
-                      {passed ? (
-                        <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
-                        </svg>
-                      ) : (
-                        <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M6 18L18 6M6 6l12 12" />
-                        </svg>
-                      )}
-                      <span>{label}</span>
-                    </div>
-                  ))}
+            
+            <div className="grid grid-cols-2 gap-1 text-xs">
+              {passwordStrength && Object.entries(passwordStrength.checks).map(([check, passed]) => (
+                <div key={check} className={`flex items-center gap-1 ${passed ? 'text-emerald-400' : 'text-gray-500'}`}>
+                  {passed ? <Check className="h-3 w-3" /> : <X className="h-3 w-3" />}
+                  <span className="capitalize">
+                    {check === 'length' ? '8+ characters' : 
+                    check === 'lowercase' ? 'lowercase' :
+                    check === 'uppercase' ? 'uppercase' :
+                    check === 'numbers' ? 'numbers' : 'special'}
+                  </span>
                 </div>
-              )
-            })()}
+              ))}
+            </div>
           </div>
         )}
       </div>
@@ -375,26 +347,39 @@ function AccountActivationForm({ token, customerData, onOtpSent }: AccountActiva
       <div className="space-y-2">
         <div className="relative">
           <Input
-            {...register("confirmPassword")}
+            {...register("confirmPassword", {
+              onChange: () => {
+                setConfirmPasswordTouched(true);
+              }
+            })}
             type={showConfirmPassword ? "text" : "password"}
             placeholder="Confirm Password *"
             variant="primary"
             size="xl"
-            className={errors.confirmPassword || (passwordCheck && password !== confirmPassword) ? "border-red-500 pr-10" : "pr-10"}
+            className={`pr-10 ${errors.confirmPassword || (!passwordsMatch && confirmPasswordTouched && confirmPassword) ? "border-red-500 focus-visible:border-red-500 focus-visible:ring-red-500/20" : ""}`}
           />
           <button
             type="button"
             onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-            className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white"
+            className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-300"
           >
-            {showConfirmPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+            {showConfirmPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
           </button>
         </div>
-        {showErrors && errors.confirmPassword && (
+        {errors.confirmPassword && (
           <p className="text-xs text-red-400">{errors.confirmPassword.message}</p>
         )}
-        {showErrors && passwordCheck && password !== confirmPassword && (
-          <p className="text-xs text-red-400">Passwords do not match</p>
+        {passwordsMatch && confirmPassword && (
+          <p className="text-emerald-400 text-xs mt-1 flex items-center gap-1">
+            <Check className="h-3 w-3" />
+            Passwords match
+          </p>  
+        )}
+        {!passwordsMatch && confirmPasswordTouched && confirmPassword && (
+          <p className="text-red-400 text-xs mt-1 flex items-center gap-1">
+            <X className="h-3 w-3" />
+            Passwords do not match
+          </p>
         )}
       </div>
 
@@ -536,7 +521,7 @@ function AccountActivation({
     return null;
   }
 
-  const recaptchaSiteKey = "6LeBwBMsAAAAAEl2Qh4OlYJClOMVbBrJovxQL0l1";
+  const recaptchaSiteKey = "6LdJ4SYsAAAAAE6o7fGLD287tW__WDlCqX3Iuf3R";
 
   if (!recaptchaSiteKey) {
     console.error("reCAPTCHA site key is not set");

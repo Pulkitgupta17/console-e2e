@@ -20,12 +20,12 @@ import { useAppSelector } from "@/store/store"
 import { changeExpiredPassword, logoutAPI } from "@/services/signupService"
 import { MYACCOUNT_URL } from "@/constants/global.constants"
 
-// Password validation: 16-30 chars, mixed case, digits (matching Angular regex)
-const passwordRegex = /^(?=\D*\d)(?=[^a-z]*[a-z])(?=[^A-Z]*[A-Z]).{16,30}$/;
+// Password validation: 8-30 chars, mixed case, digits (matching Angular regex)
+const passwordRegex = /^(?=\D*\d)(?=[^a-z]*[a-z])(?=[^A-Z]*[A-Z]).{8,30}$/;
 
 const schema = z.object({
   password: z.string()
-    .min(16, { message: "Password must be at least 16 characters long" })
+    .min(8, { message: "Password must be at least 8 characters long" })
     .max(30, { message: "Password must be at most 30 characters long" })
     .regex(passwordRegex, { 
       message: "Password must contain uppercase, lowercase, and numbers" 
@@ -80,7 +80,7 @@ function PasswordExpiry({ className }: PasswordExpiryProps) {
   }, [navigate, isAuthenticated]);
 
   const passwordStrength = password ? calculatePasswordStrength(password, {
-    minLength: 16,
+    minLength: 8,
     maxLength: 30,
     requireSpecialChars: false,
   }) : null;
@@ -213,7 +213,7 @@ function PasswordExpiry({ className }: PasswordExpiryProps) {
                     <div key={check} className={`flex items-center gap-1 ${passed ? 'text-emerald-400' : 'text-gray-500'}`}>
                       {passed ? <Check className="h-3 w-3" /> : <X className="h-3 w-3" />}
                       <span className="capitalize">
-                        {check === 'length' ? '16-30 chars' :
+                        {check === 'length' ? '8+ characters' :
                          check === 'lowercase' ? 'lowercase' :
                          check === 'uppercase' ? 'uppercase' :
                          'numbers'}
