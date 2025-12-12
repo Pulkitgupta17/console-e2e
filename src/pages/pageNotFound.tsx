@@ -1,9 +1,20 @@
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { useNavigate } from "react-router-dom";
+import { MYACCOUNT_URL } from "@/constants/global.constants";
+import { validateUser } from "@/store/authSlice";
 
 const PageNotFound = () => {
   const navigate = useNavigate();
+  const isAuthenticated = validateUser();
+
+  const handleGoToDashboard = () => {
+    if (isAuthenticated && MYACCOUNT_URL) {
+      window.location.href = MYACCOUNT_URL;
+    } else {
+      navigate("/accounts/signin");
+    }
+  };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 flex items-center justify-center p-8">
@@ -21,10 +32,10 @@ const PageNotFound = () => {
           <div className="flex flex-col sm:flex-row gap-3 justify-center items-center">
             <Button
               variant="signup"
-              onClick={() => navigate("/")}
+              onClick={handleGoToDashboard}
               className="w-full sm:w-auto"
             >
-              Go to Dashboard
+              {isAuthenticated ? "Go to Dashboard" : "Go to Sign In"}
             </Button>
             <Button
               variant="social"

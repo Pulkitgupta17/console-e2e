@@ -3,6 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { logout } from "@/store/authSlice";
 import { LogOut } from "lucide-react";
+import { BASE_URL } from "@/constants/global.constants";
 
 const Dashboard = () => {
   const dispatch = useAppDispatch();
@@ -16,6 +17,7 @@ const Dashboard = () => {
 
   const handleLogout = () => {
     dispatch(logout());
+    window.location.href = BASE_URL;
   };
 
   return (

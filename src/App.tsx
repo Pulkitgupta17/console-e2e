@@ -1,7 +1,32 @@
 import { AppRoutes } from './routes/routeConfig'
 import { Toaster } from 'sonner'
+import { useEffect } from 'react'
+import { useLocation } from 'react-router-dom'
+import { setCookie } from './services/commonMethods'
+import { useAppDispatch } from './store/store'
+import { fetchCountries } from './store/countriesSlice'
 
 function App() {
+  const location = useLocation();
+  const dispatch = useAppDispatch();
+
+  useEffect(() => {
+    dispatch(fetchCountries());
+  }, [dispatch]);
+
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const service = urlParams.get('service');
+    
+    if (service) {
+      setCookie('source', service);
+      urlParams.delete('service');
+      
+      const newUrl = window.location.pathname + (urlParams.toString() ? '?' + urlParams.toString() : '');
+      window.history.replaceState({}, '', newUrl);
+    }
+  }, [location.search]);
+
   return (
     <>
     <AppRoutes />

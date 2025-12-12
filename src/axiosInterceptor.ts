@@ -21,7 +21,6 @@ export const setupAxiosInterceptors = (store: Store) => {
       }
 
       if (status === ApiStatusCode.UNAUTHORIZED) {
-        console.log("calling logoutUser");
         logoutUser();
       } else if (status === ApiStatusCode.FORBIDDEN) {
         errorType = "forbidden";

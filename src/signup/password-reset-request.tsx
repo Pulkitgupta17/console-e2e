@@ -18,6 +18,7 @@ import { Send, Mail, X } from "lucide-react"
 import { GoogleReCaptchaProvider, useGoogleReCaptcha } from "react-google-recaptcha-v3"
 import { getCookie } from "@/services/commonMethods"
 import { requestPasswordReset } from "@/services/signupService"
+import { MYACCOUNT_URL } from "@/constants/global.constants"
 
 declare global {
   interface Window {
@@ -55,7 +56,7 @@ function PasswordResetRequestForm({ className }: PasswordResetRequestFormProps) 
   const [resendCountdown, setResendCountdown] = useState(0);
   const [isResending, setIsResending] = useState(false);
 
-  const RECAPTCHA_V2_SITE_KEY = "6LeJ7_4jAAAAAKqjyjQ2jEC4yJenDE6R8KyTu9Mt";
+  const RECAPTCHA_V2_SITE_KEY = "6LdJ4SYsAAAAAE6o7fGLD287tW__WDlCqX3Iuf3R";
 
   // Redirect if already logged in
   useEffect(() => {
@@ -63,7 +64,8 @@ function PasswordResetRequestForm({ className }: PasswordResetRequestFormProps) 
     const apikey = getCookie('apikey');
 
     if (token && apikey) {
-      navigate('/');
+      // navigate('/');
+      window.location.href = MYACCOUNT_URL;
     }
   }, [navigate]);
 
@@ -93,7 +95,7 @@ function PasswordResetRequestForm({ className }: PasswordResetRequestFormProps) 
 
       // Execute reCAPTCHA v3 if not already done
       if (!recaptchaToken && executeRecaptcha) {
-        token = await executeRecaptcha('password_reset');
+        token = await executeRecaptcha('password');
         version = 'v3';
         setRecaptchaToken(token);
         setRecaptchaVersion('v3');
@@ -272,7 +274,6 @@ function PasswordResetRequestForm({ className }: PasswordResetRequestFormProps) 
                 />
                 {errors.email && (
                   <p className="text-red-400 text-xs mt-1 flex items-center gap-1">
-                    <X className="h-3 w-3" />
                     {errors.email.message}
                   </p>
                 )}
@@ -318,7 +319,7 @@ function PasswordResetRequestForm({ className }: PasswordResetRequestFormProps) 
 
 // Wrapper with reCAPTCHA provider
 const PasswordResetRequest = (props: React.ComponentProps<"div">) => {
-  const recaptchaSiteKey = "6LeJ7_4jAAAAAKqjyjQ2jEC4yJenDE6R8KyTu9Mt";
+  const recaptchaSiteKey = "6LdJ4SYsAAAAAE6o7fGLD287tW__WDlCqX3Iuf3R";
   
   return (
     <GoogleReCaptchaProvider reCaptchaKey={recaptchaSiteKey}>

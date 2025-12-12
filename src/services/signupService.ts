@@ -210,7 +210,7 @@ export const verifyContactPersonToken = async (token: string): Promise<VerifyCon
   const response = await PublicAPI.get(
     `accounts/verify-contact-person/${token}` // token already includes ?token=
   );
-  return response.data;
+  return response.data?.data;
 };
 
 export const sendOtpPhone = async (payload: SendOtpPhonePayload) => {
@@ -279,6 +279,25 @@ export const reportLostGAKey = async () => {
   const response = await API.post(
     "two-factor/ga-totp/key-lost/",
     {}
+  );
+  return response.data;
+};
+
+// SSO Login APIs
+
+export interface SSOLoginRequestPayload {
+  return_to: string;
+}
+
+export interface SSOLoginResponse {
+  redirect_url: string;
+}
+
+// Request SSO login URL
+export const requestSSOLogin = async (organizationId: string, returnTo: string): Promise<SSOLoginResponse> => {
+  const response = await PublicAPI.post(
+    `sso/organizations/${organizationId}/sso-login/`,
+    { return_to: returnTo }
   );
   return response.data;
 };

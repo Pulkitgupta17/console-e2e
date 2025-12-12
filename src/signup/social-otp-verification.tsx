@@ -18,6 +18,9 @@ import { useGoogleReCaptcha } from "react-google-recaptcha-v3"
 import { useAppDispatch } from "@/store/store"
 import { login as loginAction, type User } from "@/store/authSlice"
 import type { SocialUser, OtpStatus } from "@/interfaces/signupInterface"
+import { NOTEBOOK_URL } from "@/constants/global.constants"
+import { postCrossDomainMessage, setSessionTimeCookie, processOtpPaste, createOtpPasteHandler, createOtpKeyDownHandler, setUTMResource, removeAllCookies } from "@/services/commonMethods"
+import { LoadingScreen } from "@/components/LoadingScreen"
 
 interface SocialOtpVerificationProps extends React.ComponentProps<"div"> {
   onBack?: () => void;
@@ -45,6 +48,8 @@ function SocialOtpVerification({
   const [termsAccepted, setTermsAccepted] = useState(false);
   const [mobileTimer, setMobileTimer] = useState(60);
   const [canResendMobile, setCanResendMobile] = useState(false);
+  const [resendAttempts, setResendAttempts] = useState(0);
+  const [showLoadingScreen, setShowLoadingScreen] = useState(false);
 
   // Mobile OTP Timer countdown
   useEffect(() => {
@@ -58,8 +63,27 @@ function SocialOtpVerification({
     }
   }, [mobileTimer]);
 
+  const processPasteData = (pastedData: string) => {
+    processOtpPaste({
+      pastedData,
+      otpLength: 6,
+      setOtpValues: setMobileOtpValues,
+      inputIdPrefix: 'mobile-otp',
+    })
+  }
+
   const handleOtpChange = (index: number, value: string) => {
-    if (value.length > 1) return;
+    // If value length is greater than 1, it's likely a paste operation
+    if (value.length > 1) {
+      processPasteData(value)
+      return
+    }
+    
+    // For single character input, only allow numeric characters
+    if (value && !/^\d$/.test(value)) {
+      return
+    }
+    
     const newValues = [...mobileOtpValues];
     newValues[index] = value;
     setMobileOtpValues(newValues);
@@ -70,27 +94,13 @@ function SocialOtpVerification({
     }
   };
 
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>, index: number) => {
+  const handlePaste = createOtpPasteHandler(processPasteData)
 
-    if (e.key === "Backspace") {
-      // If current input is empty, move to previous input
-      if (!mobileOtpValues[index] && index > 0) {
-        const prevInput = document.getElementById(`mobile-otp-${index - 1}`);
-        prevInput?.focus();
-      } else {
-        // Clear current input
-        const newValues = [...mobileOtpValues];
-        newValues[index] = '';
-        setMobileOtpValues(newValues);
-      }
-      return;
-    }
-
-    // Validate only numbers
-    if (!/[0-9]/.test(e.key) && e.key !== "Tab" && e.key !== "ArrowLeft" && e.key !== "ArrowRight") {
-      e.preventDefault();
-    }
-  };
+  const handleKeyDown = createOtpKeyDownHandler({
+    otpValues: mobileOtpValues,
+    setOtpValues: setMobileOtpValues,
+    inputIdPrefix: 'mobile-otp',
+  })
 
   const handleResendMobile = async (type: 'sms' | 'voice' = 'sms') => {
     if (!executeRecaptcha) {
@@ -99,7 +109,7 @@ function SocialOtpVerification({
     }
 
     try {
-      const recaptchaToken = await executeRecaptcha("resend_otp");
+      const recaptchaToken = await executeRecaptcha("otp");
 
       const payload: any = {
         email: socialUser.email,
@@ -118,6 +128,10 @@ function SocialOtpVerification({
       toast.success(type === 'voice' ? "OTP will be sent via call" : "Mobile OTP resent successfully");
       setMobileTimer(60);
       setCanResendMobile(false);
+      
+      if (type === 'sms') {
+        setResendAttempts(prev => prev + 1);
+      }
     } catch (error: any) {
       toast.error(error?.response?.data?.message || "Failed to resend mobile OTP");
     }
@@ -216,6 +230,7 @@ function SocialOtpVerification({
       const apiKey = userData?.data.auth?.[0]?.apikey;
 
       if (token && apiKey) {
+        setShowLoadingScreen(true);
         const { first_name, last_name } = nameEdited 
           ? splitFullName(editedName)
           : splitFullName(socialUser.name);
@@ -246,18 +261,19 @@ function SocialOtpVerification({
         localStorage.removeItem('socialuser');
 
         // Set CSRF token if available
-        if (userData.csrf_token) {
+        if (userData.CSRF_COOKIE) {
           const expiryDate = new Date();
           expiryDate.setDate(expiryDate.getDate() + 10);
-          document.cookie = `csrftoken=${userData.csrf_token}; expires=${expiryDate.toUTCString()}; path=/; SameSite=Strict`;
+          document.cookie = `csrftoken=${userData.CSRF_COOKIE}; expires=${expiryDate.toUTCString()}; path=/;`;
         }
 
         toast.success("Signup successful! Welcome to E2E Networks");
+        await setUTMResource();
         localStorage.removeItem("logininprogress");
-        // Navigate to dashboard
-        setTimeout(() => {
-          navigate("/");
-        }, 500);
+
+        // Navigate to TIR Dashboard
+        setSessionTimeCookie();
+        postCrossDomainMessage(NOTEBOOK_URL, 0);
       } else {
         toast.error("Failed to retrieve authentication data");
       }
@@ -274,15 +290,19 @@ function SocialOtpVerification({
     }
   };
 
+  if (showLoadingScreen) {
+    return <LoadingScreen />;
+  }
+
   return (
     <div className={cn("w-full max-w-md mx-auto", className)} {...props}>
       <Card className="border-gray-800/50 backdrop-blur-sm form-fade-in" style={{ backgroundColor: 'var(--signup-card-bg)' }}>
         <CardHeader className="text-left space-y-2">
-          <div className="mb-2">
+          <div className="flex items-center gap-3">
             <button
               type="button"
               onClick={onBack}
-              className="text-gray-400 hover:text-white transition-colors mb-3"
+              className="text-gray-400 hover:text-white transition-colors"
             >
               <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
@@ -313,10 +333,10 @@ function SocialOtpVerification({
                       id={`mobile-otp-${index}`}
                       type="text"
                       inputMode="numeric"
-                      maxLength={1}
                       value={value}
                       onChange={(e) => handleOtpChange(index, e.target.value)}
                       onKeyDown={(e) => handleKeyDown(e, index)}
+                      onPaste={handlePaste}
                       variant="primary"
                       size="otp"
                       className="text-center text-lg font-semibold"
@@ -327,21 +347,34 @@ function SocialOtpVerification({
                 </div>
               </div>
               
-              <div className="flex justify-between text-sm">
-                {canResendMobile ? (
-                  <button 
-                    type="button" 
-                    onClick={() => handleResendMobile('sms')}
-                    className="text-cyan-400 hover:text-cyan-300 flex items-center gap-1"
-                  >
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                    </svg>
-                    Resend Code
-                  </button>
-                ) : (
-                  <span className="text-gray-400 whitespace-nowrap">Resend in {mobileTimer}s</span>
-                )}
+              <div className="flex justify-between items-center text-sm">
+                <div className="flex items-center gap-2">
+                  {canResendMobile ? (
+                    <button 
+                      type="button" 
+                      onClick={() => handleResendMobile('sms')}
+                      className="text-cyan-400 hover:text-cyan-300 flex items-center gap-1"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                      </svg>
+                      Resend Code
+                    </button>
+                  ) : (
+                    <span className="text-gray-400 whitespace-nowrap">Resend in {mobileTimer}s</span>
+                  )}
+                  
+                  {resendAttempts >= 2 && (
+                    <button 
+                      type="button"
+                      onClick={() => handleResendMobile('voice')}
+                      disabled={mobileTimer > 0}
+                      className={`text-sm ${mobileTimer > 0 ? 'text-gray-500 cursor-not-allowed' : 'text-cyan-400 hover:text-cyan-300'}`}
+                    >
+                      Get a call instead
+                    </button>
+                  )}
+                </div>
                 <button 
                   type="button" 
                   className="text-cyan-400 hover:text-cyan-300"
@@ -364,14 +397,14 @@ function SocialOtpVerification({
                 />
                 <label htmlFor="terms-otp" className="text-sm text-gray-400">
                   By continuing you agree to the{" "}
-                  <a href="#" className="text-cyan-400 hover:text-cyan-300">
+                  <a href="https://www.e2enetworks.com/policies/terms-of-service" className="text-cyan-400 hover:text-cyan-300" target="_blank">
                     terms
                   </a>{" "}
                   and{" "}
-                  <a href="#" className="text-cyan-400 hover:text-cyan-300">
+                  <a href="https://www.e2enetworks.com/policies/privacy-policy" className="text-cyan-400 hover:text-cyan-300" target="_blank">
                     privacy policy
                   </a>
-                  .
+                  .<span className="text-red-400 ml-1">*</span>
                 </label>
               </div>
             </div>
@@ -382,7 +415,7 @@ function SocialOtpVerification({
                 type="submit" 
                 variant="signup" 
                 size="xl"
-                disabled={isSubmitting || !termsAccepted}
+                disabled={isSubmitting || !termsAccepted || mobileOtpValues.join('').length !== 6}
               >
                 {isSubmitting ? "Verifying..." : "Verify & Sign Up"}
               </Button>
@@ -393,7 +426,11 @@ function SocialOtpVerification({
               Already have an account?{" "}
               <button
                 type="button"
-                onClick={() => navigate('/accounts/signin')}
+                onClick={() => {
+                  localStorage.clear();
+                  removeAllCookies();
+                  navigate('/accounts/signin');
+                }}
                 className="text-cyan-400 hover:text-cyan-300"
               >
                 Sign in

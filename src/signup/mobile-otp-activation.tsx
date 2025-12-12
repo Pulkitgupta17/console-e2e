@@ -14,6 +14,7 @@ import { toast } from "sonner"
 import { verifyPhoneOtp, finalizeContactPersonActivation, resendOtpForActivation } from "@/services/signupService"
 import { useGoogleReCaptcha } from "react-google-recaptcha-v3"
 import type { VerifyContactPersonResponse } from "@/interfaces/signupInterface"
+import { processOtpPaste, createOtpPasteHandler, createOtpKeyDownHandler } from "@/services/commonMethods"
 
 interface MobileOtpActivationProps {
   payload: {
@@ -48,6 +49,7 @@ function MobileOtpActivation({
   const [timer, setTimer] = useState(60);
   const [canResend, setCanResend] = useState(false);
   const [resendAttempts, setResendAttempts] = useState(0);
+  const [termsAccepted, setTermsAccepted] = useState(false);
 
   useEffect(() => {
     if (timer > 0) {
@@ -60,8 +62,27 @@ function MobileOtpActivation({
     }
   }, [timer]);
 
+  const processPasteData = (pastedData: string) => {
+    processOtpPaste({
+      pastedData,
+      otpLength: 6,
+      setOtpValues,
+      inputIdPrefix: 'otp',
+    })
+  }
+
   const handleOtpChange = (index: number, value: string) => {
-    if (value.length > 1) return; // Only allow single digit
+    // If value length is greater than 1, it's likely a paste operation
+    if (value.length > 1) {
+      processPasteData(value)
+      return
+    }
+    
+    // For single character input, only allow numeric characters
+    if (value && !/^\d$/.test(value)) {
+      return
+    }
+    
     const newValues = [...otpValues];
     newValues[index] = value;
     setOtpValues(newValues);
@@ -72,29 +93,19 @@ function MobileOtpActivation({
     }
   };
 
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>, index: number) => {
-    if (e.key === "Backspace") {
-      if (!otpValues[index] && index > 0) {
-        const prevInput = document.getElementById(`otp-${index - 1}`);
-        prevInput?.focus();
-      } else {
-        const newValues = [...otpValues];
-        newValues[index] = '';
-        setOtpValues(newValues);
-      }
-      return;
-    }
+  const handlePaste = createOtpPasteHandler(processPasteData)
 
-    if (!/[0-9]/.test(e.key) && e.key !== "Tab" && e.key !== "ArrowLeft" && e.key !== "ArrowRight") {
-      e.preventDefault();
-    }
-  };
+  const handleKeyDown = createOtpKeyDownHandler({
+    otpValues,
+    setOtpValues,
+    inputIdPrefix: 'otp',
+  })
 
   const handleResend = async (type: 'sms' | 'voice' = 'sms') => {
     if (timer > 0 || !executeRecaptcha) return;
 
     try {
-      const recaptchaToken = await executeRecaptcha("resend_otp");
+      const recaptchaToken = await executeRecaptcha("otp");
 
       const resendPayload: any = {
         mobile: payload.mobile,
@@ -231,10 +242,10 @@ const maskPhoneNumber = (phone: string): string => {
                     id={`otp-${index}`}
                     type="text"
                     inputMode="numeric"
-                    maxLength={1}
                     value={value}
                     onChange={(e) => handleOtpChange(index, e.target.value)}
                     onKeyDown={(e) => handleKeyDown(e, index)}
+                    onPaste={handlePaste}
                     variant="primary"
                     size="otp"
                     className="text-center text-lg font-semibold"
@@ -276,19 +287,21 @@ const maskPhoneNumber = (phone: string): string => {
               <input
                 type="checkbox"
                 id="terms-otp-activation"
-                required
                 className="mt-1 w-4 h-4 text-cyan-600 bg-gray-800 border-gray-700 rounded focus:ring-cyan-500 focus:ring-2"
+                checked={termsAccepted}
+                required
+                onChange={(e) => setTermsAccepted(e.target.checked)}
               />
               <label htmlFor="terms-otp-activation" className="text-sm text-gray-400">
                 By continuing you agree to the{" "}
-                <a href="#" className="text-cyan-400 hover:text-cyan-300">
+                <a href="https://www.e2enetworks.com/policies/terms-of-service" className="text-cyan-400 hover:text-cyan-300" target="_blank">
                   terms
                 </a>{" "}
                 and{" "}
-                <a href="#" className="text-cyan-400 hover:text-cyan-300">
+                <a href="https://www.e2enetworks.com/policies/privacy-policy" className="text-cyan-400 hover:text-cyan-300" target="_blank">
                   privacy policy
                 </a>
-                .
+                .<span className="text-red-400 ml-1">*</span>
               </label>
             </div>
             
@@ -296,7 +309,11 @@ const maskPhoneNumber = (phone: string): string => {
               type="submit" 
               variant="signup" 
               size="xl"
-              disabled={isSubmitting}
+              disabled={
+                isSubmitting || 
+                !termsAccepted || 
+                otpValues.join('').length !== 6
+              }
               className="w-full"
             >
               {isSubmitting ? "Verifying..." : "Verify"}
