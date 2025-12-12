@@ -20,6 +20,7 @@ import { login as loginAction, type User } from "@/store/authSlice"
 import type { SocialUser, OtpStatus } from "@/interfaces/signupInterface"
 import { NOTEBOOK_URL } from "@/constants/global.constants"
 import { postCrossDomainMessage, setSessionTimeCookie, processOtpPaste, createOtpPasteHandler, createOtpKeyDownHandler, setUTMResource, removeAllCookies } from "@/services/commonMethods"
+import { LoadingScreen } from "@/components/LoadingScreen"
 
 interface SocialOtpVerificationProps extends React.ComponentProps<"div"> {
   onBack?: () => void;
@@ -48,6 +49,7 @@ function SocialOtpVerification({
   const [mobileTimer, setMobileTimer] = useState(60);
   const [canResendMobile, setCanResendMobile] = useState(false);
   const [resendAttempts, setResendAttempts] = useState(0);
+  const [showLoadingScreen, setShowLoadingScreen] = useState(false);
 
   // Mobile OTP Timer countdown
   useEffect(() => {
@@ -228,6 +230,7 @@ function SocialOtpVerification({
       const apiKey = userData?.data.auth?.[0]?.apikey;
 
       if (token && apiKey) {
+        setShowLoadingScreen(true);
         const { first_name, last_name } = nameEdited 
           ? splitFullName(editedName)
           : splitFullName(socialUser.name);
@@ -286,6 +289,10 @@ function SocialOtpVerification({
       setIsSubmitting(false);
     }
   };
+
+  if (showLoadingScreen) {
+    return <LoadingScreen />;
+  }
 
   return (
     <div className={cn("w-full max-w-md mx-auto", className)} {...props}>

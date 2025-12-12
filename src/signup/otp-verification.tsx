@@ -27,6 +27,7 @@ import { login as loginAction, type User } from "@/store/authSlice"
 import type { SignupData, OtpStatus } from "@/interfaces/signupInterface"
 import { NOTEBOOK_URL } from "@/constants/global.constants"
 import { postCrossDomainMessage, setSessionTimeCookie, processOtpPaste, createOtpPasteHandler, createOtpKeyDownHandler, setUTMResource, removeAllCookies } from "@/services/commonMethods"
+import { LoadingScreen } from "@/components/LoadingScreen"
 
 interface OtpVerificationProps extends React.ComponentProps<"div"> {
   onBack?: () => void;
@@ -57,6 +58,7 @@ function OtpVerification({
   const [changeContactType, setChangeContactType] = useState<'mobile' | 'email'>('mobile');
   const [currentSignupData, setCurrentSignupData] = useState<SignupData>(signupData);
   const [resendAttempts, setResendAttempts] = useState(0);
+  const [showLoadingScreen, setShowLoadingScreen] = useState(false);
 
   // Mobile OTP Timer countdown
   useEffect(() => {
@@ -311,6 +313,7 @@ function OtpVerification({
 
       if (token && apiKey) {
         // Create user object
+        setShowLoadingScreen(true);
         const user: User = {
           username: userData?.data?.user?.username || first_name,
           first_name: first_name,
@@ -344,7 +347,6 @@ function OtpVerification({
         await setUTMResource();
         
         localStorage.removeItem("logininprogress");
-        
         // Navigate to TIR Dashboard
         setSessionTimeCookie();
         postCrossDomainMessage(NOTEBOOK_URL, 0);
@@ -382,6 +384,9 @@ function OtpVerification({
     setShowChangeContact(false);
   };
 
+  if (showLoadingScreen) {
+    return <LoadingScreen />;
+  }
   // Show change contact form if state is true
   if (showChangeContact) {
     return (

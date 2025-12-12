@@ -30,7 +30,7 @@ import { googleCallback, verifySocialEmail, loginGoogle, loginGithub, githubCall
 import type { SocialUser } from "@/interfaces/signupInterface";
 import { Spinner } from '@/components/ui/shadcn-io/spinner';
 import { MYACCOUNT_URL, MARKETPLACE_URL, NOTEBOOK_URL, BASE_URL } from "@/constants/global.constants";
-
+import { LoadingScreen } from "@/components/LoadingScreen"
 
 declare global {
   interface Window {
@@ -67,7 +67,6 @@ const LoginForm: React.FC<{
   const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(false);
   const navigate = useNavigate();
-  
   const handleFormSubmit = async (data: FormFields) => {
     await onSubmit(data, rememberMe);
   };
@@ -290,7 +289,7 @@ function Signin({
   const hasProcessedSSO = useRef(false);
   const [showSocialSignup, setShowSocialSignup] = useState(false);
   const [socialUser, setSocialUser] = useState<SocialUser | null>(null);
-
+  const [showLoadingScreen, setShowLoadingScreen] = useState(false);
   useEffect(() => {
     captureUTMParameters();
   }, []);
@@ -820,6 +819,7 @@ function Signin({
       } catch (error) {
         console.warn("Failed to get customer validation status:", error);
       }
+      setShowLoadingScreen(true);
       
       // Remove login progress flag before navigating
       localStorage.removeItem("logininprogress");
@@ -829,6 +829,10 @@ function Signin({
       return;
     }
   };
+
+  if (showLoadingScreen) {
+    return <LoadingScreen />;
+  }
 
   // Handle redirect logic based on returnUrl, source cookie, and redirectToTIR
   const handleSignInRedirect = (rememberMe: boolean = false) => {
@@ -986,6 +990,7 @@ function Signin({
         } catch (error) {
           console.warn("Failed to get customer validation status:", error);
         }
+        setShowLoadingScreen(true);
 
         // Remove login progress flag before navigating
         localStorage.removeItem("logininprogress");
@@ -1211,7 +1216,7 @@ function Signin({
             navigate("/accounts/password-reset");
             return;
           }
-          
+          setShowLoadingScreen(true);
           // Remove login progress flag before navigating
           localStorage.removeItem("logininprogress");
           
@@ -1341,7 +1346,7 @@ function Signin({
           } catch (error) {
             console.warn("Failed to get customer validation status:", error);
           }
-
+          setShowLoadingScreen(true);
           // Handle session cookies (trust device)
           if (rememberMe) {
             // Set 60-day session
