@@ -11,6 +11,7 @@ import { cn } from "@/lib/utils"
 import { useState, useEffect, useRef } from "react"
 import PhoneInput from 'react-phone-input-2'
 import 'react-phone-input-2/lib/style.css'
+import { parsePhoneNumber } from 'libphonenumber-js'
 import OtpVerification from './otp-verification'
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm, type SubmitHandler } from "react-hook-form";
@@ -18,12 +19,14 @@ import { z } from "zod";
 import { Eye, EyeOff, Check, X } from "lucide-react";
 import { useNavigate } from 'react-router-dom'
 import { GoogleReCaptchaProvider, useGoogleReCaptcha } from "react-google-recaptcha-v3";
-import { customerDetailsVerification, sendOtpEmail, googleCallback } from "@/services/signupService";
+import { customerDetailsVerification, sendOtpEmail, googleCallback, verifySocialEmail } from "@/services/signupService";
 import { toast } from "sonner";
 import type { SignupData, OtpStatus, SocialUser } from "@/interfaces/signupInterface";
-import { getCookie, removeCookie, calculatePasswordStrength } from "@/services/commonMethods";
+import { getCookie, removeCookie, calculatePasswordStrength, captureUTMParameters, removeAllCookies } from "@/services/commonMethods";
 import CompleteSocialSignupForm from "./complete-social-signup";
 import { Spinner } from '@/components/ui/shadcn-io/spinner';
+import { MYACCOUNT_URL } from "@/constants/global.constants"
+import { useAppSelector } from "@/store/store";
 
 // Declare Google Identity Services types
 declare global {
@@ -33,9 +36,9 @@ declare global {
 }
 
 const schema = z.object({
-  name: z.string().min(1, { message: "Name is required" }).refine((val: string) => val.trim().includes(" "), {
-    message: "Please enter your full name.",
-  }),
+  name: z.string()
+    .min(1, { message: "Name is required" })
+    .regex(/^[a-zA-Z\s]+$/, { message: "Name should contain only alphabets." }),
   email: z.string().email({ message: "Invalid email address" }),
   password: z.string().min(8, { message: "Password must be at least 8 characters long" }),
 });
@@ -48,17 +51,31 @@ function SignupForm({
 }: React.ComponentProps<"div">) {
   const { executeRecaptcha } = useGoogleReCaptcha();
   const navigate = useNavigate();
-  const { register, handleSubmit, watch, formState: {isSubmitting, errors} } = useForm<FormFields>({
+  const { countriesList, restrictedCountriesList, loading: countriesLoading } = useAppSelector((state) => state.countries);
+  
+  const onlyCountriesProp = !countriesLoading && countriesList.length > 0 
+    ? countriesList.filter((c: string) => c && c.length === 2).map((c: string) => c.toLowerCase()) // Ensure lowercase and valid 2-letter codes
+    : undefined;
+  const excludeCountriesProp = !countriesLoading && restrictedCountriesList.length > 0 
+    ? restrictedCountriesList.filter((c: string) => c && c.length === 2).map((c: string) => c.toLowerCase()) // Ensure lowercase and valid 2-letter codes
+    : undefined;
+  
+  // Key to force remount when countries data changes - changes when data loads or list updates
+  const phoneInputKey = `phone-${countriesList.length}-${countriesLoading}-${onlyCountriesProp?.join(',') || 'empty'}`;
+  const { register, handleSubmit, watch, formState: {isSubmitting, isValid, errors, touchedFields} } = useForm<FormFields>({
     defaultValues: {
       name: "",
       email: "",
       password: "",
     },
     resolver: zodResolver(schema),
+    mode: "onChange", // Enable validation on change to update isValid in real-time
   });
   
   const [showPassword, setShowPassword] = useState(false);
   const [phoneNumber, setPhoneNumber] = useState('');
+  const [phoneError, setPhoneError] = useState<string | null>(null);
+  const [selectedCountry, setSelectedCountry] = useState<string>('in');
   const [showOtpVerification, setShowOtpVerification] = useState(false);
   const [signupData, setSignupData] = useState<SignupData | null>(null);
   const [otpStatus, setOtpStatus] = useState<OtpStatus | null>(null);
@@ -70,6 +87,14 @@ function SignupForm({
   
   // Use ref to prevent duplicate OAuth processing
   const hasProcessedOAuth = useRef(false);
+
+  // Capture UTM parameters when signup page loads
+  useEffect(() => {
+    if(!getCookie('token')){
+      removeCookie('user');
+    }  
+    captureUTMParameters();
+  }, []);
 
   // Redirect to dashboard if user is already logged in (check cookies)
   useEffect(() => {
@@ -85,7 +110,8 @@ function SignupForm({
         localStorage.removeItem("logininprogress");
       }
       else{
-        navigate('/');
+        // navigate('/');
+        window.location.replace(MYACCOUNT_URL);
         return;
       }
     }
@@ -93,7 +119,7 @@ function SignupForm({
 
   // Cleanup effect: Remove login progress flag if user exists
   useEffect(() => {
-    const authLocalStorage = JSON.parse(localStorage.getItem("currentUser") || "null");
+    const authLocalStorage = getCookie('user') || JSON.parse(localStorage.getItem("currentUser") || "null");
     
     if (!authLocalStorage && localStorage.getItem("logininprogress") === "yes") {
       localStorage.removeItem("logininprogress");
@@ -141,6 +167,23 @@ function SignupForm({
 
           // Store social user in state (not localStorage to keep on same page)
           setSocialUser(user);
+          
+          // Step 2: Verify email exists
+          const emailVerifyResponse = await verifySocialEmail(response.data.email);
+
+          if (emailVerifyResponse.code !== 200) {
+            toast.error("Failed to verify email");
+            localStorage.removeItem('logininprogress');
+            return;
+          }
+
+          if (emailVerifyResponse.data.email_exists) {
+            toast.info("An account is already registered with this Email ID. Please do the sign in.");
+            navigate('/accounts/signin');
+            localStorage.clear();
+            removeAllCookies();
+            return;
+          }
           setShowSocialSignup(true);
           localStorage.removeItem('logininprogress');
 
@@ -162,7 +205,6 @@ function SignupForm({
       // Handle GitHub OAuth callback
       else if (code && state) {
         const storedState = localStorage.getItem('github_oauth_state');
-        
         // CSRF validation
         if (state !== storedState) {
           toast.error("CSRF Error! Authentication Failed");
@@ -190,6 +232,23 @@ function SignupForm({
 
           // Store social user in state (not localStorage to keep on same page)
           setSocialUser(user);
+
+          // Step 2: Verify email exists
+          const emailVerifyResponse = await verifySocialEmail(response.data.email);
+
+          if (emailVerifyResponse.code !== 200) {
+            toast.error("Failed to verify email");
+            localStorage.removeItem('github_oauth_state');
+            return;
+          }
+
+          if (emailVerifyResponse.data.email_exists) {
+            toast.info("An account is already registered with this Email ID. Please do the sign in.");
+            navigate('/accounts/signin');
+            localStorage.clear();
+            removeAllCookies();
+            return;
+          }
           setShowSocialSignup(true);
           localStorage.removeItem('logininprogress');
           localStorage.removeItem('github_oauth_state');
@@ -227,8 +286,28 @@ function SignupForm({
       return;
     }
     
-    // Validate phone number
-    if (!phoneNumber || phoneNumber.length < 10) {
+    // Validate phone number using libphonenumber-js
+    if (!phoneNumber) {
+      setPhoneError("Phone number is required");
+      toast.error("Please enter a valid phone number");
+      return;
+    }
+
+    try {
+      // Parse and validate phone number based on selected country
+      const phoneNumberWithCountry = phoneNumber.startsWith('+') ? phoneNumber : `+${phoneNumber}`;
+      const parsedNumber = parsePhoneNumber(phoneNumberWithCountry, selectedCountry.toUpperCase() as any);
+      
+      if (!parsedNumber || !parsedNumber.isValid()) {
+        setPhoneError("Please enter a valid phone number");
+        toast.error("Please enter a valid phone number");
+        return;
+      }
+      
+      // Clear error if valid
+      setPhoneError(null);
+    } catch (error) {
+      setPhoneError("Please enter a valid phone number");
       toast.error("Please enter a valid phone number");
       return;
     }
@@ -240,7 +319,7 @@ function SignupForm({
     // }
 
     // Check if user already exists
-    if (localStorage.getItem("currentUser")) {
+    if (localStorage.getItem("currentUser") || getCookie('user')) {
       toast.error("You are already logged in");
       return;
     }
@@ -250,7 +329,7 @@ function SignupForm({
       localStorage.setItem("logininprogress", "yes");
 
       // Get reCAPTCHA token
-      const recaptchaToken = await executeRecaptcha("signup");
+      const recaptchaToken = await executeRecaptcha("otp");
 
       // Format phone number with +
       const formattedPhone = phoneNumber.startsWith("+") ? phoneNumber : `+${phoneNumber}`;
@@ -336,10 +415,10 @@ function SignupForm({
   const handleGoogleSignup = () => {
     try {
       // Check if user already exists
-      const authLocalStorage = JSON.parse(localStorage.getItem("currentUser") || "null");
+      const authLocalStorage = getCookie('user') || JSON.parse(localStorage.getItem("currentUser") || "null");
       if (authLocalStorage !== null) {
         toast.error("You are already logged in");
-        navigate("/");
+        window.location.replace(import.meta.env.VITE_MYACCOUNT_URL);
         return;
       }
 
@@ -395,7 +474,7 @@ function SignupForm({
     // }
 
     // Check if user already exists
-    if (localStorage.getItem("currentUser")) {
+    if (localStorage.getItem("currentUser") || getCookie('user')) {
       toast.error("You are already logged in");
       return;
     }
@@ -410,7 +489,7 @@ function SignupForm({
 
     // Get current URL for redirect (must match OAuth app settings)
     // Using localhost:4200 to match Google/GitHub OAuth configuration
-    const redirectUri = `http://localhost:4200/accounts/signup`;
+    const redirectUri = `${window.location.origin}/accounts/signup`;
 
     // GitHub OAuth Client ID
     const clientId = import.meta.env.VITE_GITHUB_CLIENT_ID || "c3a8b0fea19dbb91103f";
@@ -459,9 +538,11 @@ function SignupForm({
       
       <Card className="border-gray-800/50 backdrop-blur-sm form-fade-in" style={{ backgroundColor: 'var(--signup-card-bg)' }}>
         <CardHeader className="text-left space-y-2">
-          <CardTitle className="text-2xl font-bold text-white">
-            Start your free trial
-          </CardTitle>
+          <div className="flex items-center gap-3">
+            <CardTitle className="text-2xl font-bold text-white">
+              Start your free trial
+            </CardTitle>
+          </div>
           <CardDescription className="text-gray-400">
             No credit card. Sign up in minutes.
           </CardDescription>
@@ -477,7 +558,7 @@ function SignupForm({
                 <Input
                   id="name"
                   type="text"
-                  placeholder="Enter your full name"
+                  placeholder="Enter your name *"
                   variant="primary"
                   size="xl"
                   required
@@ -491,30 +572,67 @@ function SignupForm({
               </div>
               
               <div className="space-y-2">
-                <PhoneInput
-                  country={'in'}
-                  value={phoneNumber}
-                  onChange={(value) => setPhoneNumber(value)}
-                  placeholder="Mobile No."
-                  inputProps={{
-                    autoComplete: 'off',
-                  }}
-                />
+                <div className={cn(phoneError && "react-tel-input-error")}>
+                  <PhoneInput
+                    key={phoneInputKey}
+                    country={'in'}
+                    value={phoneNumber}
+                    countryCodeEditable={false}
+                    {...(onlyCountriesProp && { onlyCountries: onlyCountriesProp })}
+                    {...(excludeCountriesProp && { excludeCountries: excludeCountriesProp })}
+                    preferredCountries={['us', 'in', 'gb']}
+                    onChange={(value, countryData) => {
+                      setPhoneNumber(value);
+                      // Extract country code from countryData object
+                      const countryCode = (countryData as any)?.countryCode?.toLowerCase() || 
+                                         (countryData as any)?.iso2?.toLowerCase() || 
+                                         'in';
+                      setSelectedCountry(countryCode);
+                      setPhoneError(null); // Clear error when user types
+                    }}
+                    onBlur={() => {
+                      if (phoneNumber) {
+                        try {
+                          const phoneNumberWithCountry = phoneNumber.startsWith('+') ? phoneNumber : `+${phoneNumber}`;
+                          const parsedNumber = parsePhoneNumber(phoneNumberWithCountry, selectedCountry.toUpperCase() as any);
+                          
+                          if (!parsedNumber || !parsedNumber.isValid()) {
+                            setPhoneError("Please enter a valid phone number");
+                          } else {
+                            setPhoneError(null);
+                          }
+                        } catch (error) {
+                          setPhoneError("Please enter a valid phone number");
+                        }
+                      } else {
+                        setPhoneError(null);
+                      }
+                    }}
+                    placeholder="Mobile No. *"
+                    inputProps={{
+                      autoComplete: 'off',
+                    }}
+                    containerClass={cn("phone-input-container", phoneError && "phone-input-error")}
+                  />
+                </div>
+                {phoneError && (
+                  <p className="text-red-400 text-xs mt-1">{phoneError}</p>
+                )}
               </div>
               
               <div className="space-y-2">
                 <Input
                   id="email"
                   type="email"
-                  placeholder="Enter your email"
+                  placeholder="Enter your email *"
                   variant="primary"
                   size="xl"
                   required
                   autoComplete="off"
-                  className={errors.email ? "border-red-500 focus-visible:border-red-500 focus-visible:ring-red-500/20" : ""}
+                  className={errors.email && touchedFields.email ? "border-red-500 focus-visible:border-red-500 focus-visible:ring-red-500/20" : ""}
                   {...register("email")}
                 />
-                {errors.email && (
+                {errors.email && touchedFields.email && (
                   <p className="text-red-400 text-xs mt-1">{errors.email.message}</p>
                 )}
               </div>
@@ -524,7 +642,7 @@ function SignupForm({
                   <Input
                     id="password"
                     type={showPassword ? "text" : "password"}
-                    placeholder="Create a password"
+                    placeholder="Create a password *"
                     variant="primary"
                     size="xl"
                     className={errors.password ? "pr-10 border-red-500 focus-visible:border-red-500 focus-visible:ring-red-500/20" : "pr-10"}
@@ -563,7 +681,7 @@ function SignupForm({
                         <div key={check} className={`flex items-center gap-1 ${passed ? 'text-emerald-400' : 'text-gray-500'}`}>
                           {passed ? <Check className="h-3 w-3" /> : <X className="h-3 w-3" />}
                           <span className="capitalize">
-                            {check === 'length' ? '8+ chars' : 
+                            {check === 'length' ? '8+ characters' : 
                             check === 'lowercase' ? 'lowercase' :
                             check === 'uppercase' ? 'uppercase' :
                             check === 'numbers' ? 'numbers' : 'special'}
@@ -580,7 +698,7 @@ function SignupForm({
                   type="submit" 
                   variant="signup" 
                   size="xl"
-                  disabled={isSubmitting}
+                  disabled={isSubmitting || !isValid || !phoneNumber || !!phoneError}
                 >
                   {isSubmitting ? "Creating Account..." : "Create Account"}
                 </Button>
@@ -630,7 +748,11 @@ function SignupForm({
                 Already have an account?{" "}
                 <button
                   type="button"
-                  onClick={() => navigate('/accounts/signin')}
+                  onClick={() => {
+                    localStorage.clear();
+                    removeAllCookies();
+                    navigate('/accounts/signin');
+                  }}
                   className="text-cyan-400 hover:text-cyan-300"
                 >
                   Sign in
@@ -647,7 +769,7 @@ function SignupForm({
 
 // ReCaptcha Provider Wrapper
 const Signup = (props: React.ComponentProps<"div">) => {
-  const recaptchaSiteKey = "6LeJ7_4jAAAAAKqjyjQ2jEC4yJenDE6R8KyTu9Mt";
+  const recaptchaSiteKey = "6LdJ4SYsAAAAAE6o7fGLD287tW__WDlCqX3Iuf3R";
   
   if (!recaptchaSiteKey) {
     console.error("reCAPTCHA site key is not set");

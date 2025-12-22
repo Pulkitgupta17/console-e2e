@@ -1,5 +1,6 @@
 import { configureStore } from "@reduxjs/toolkit";
 import authReducer from "./authSlice";
+import countriesReducer from "./countriesSlice";
 // import themeReducer from "./themeSlice";
 // import customerReducer from "./customerSlice"
 // import appStateReducer from "./appState";
@@ -7,6 +8,7 @@ import authReducer from "./authSlice";
 const store = configureStore({
   reducer: {
     auth: authReducer,
+    countries: countriesReducer,
     // theme: themeReducer,
     // customers: customerReducer,
     // appState: appStateReducer,

@@ -15,14 +15,14 @@ import { useForm, type SubmitHandler } from "react-hook-form"
 import { z } from "zod"
 import { toast } from "sonner"
 import { Eye, EyeOff, Check, X } from "lucide-react"
-import { getCookie, calculatePasswordStrength } from "@/services/commonMethods"
+import { getCookie, calculatePasswordStrength, removeAllCookies } from "@/services/commonMethods"
 import { useAppDispatch } from "@/store/store"
 import { logout } from "@/store/authSlice"
 import { verifyPasswordResetToken, confirmPasswordReset } from "@/services/signupService"
 
 const schema = z.object({
   password: z.string().min(8, { message: "Password must be at least 8 characters long" }),
-  confirmPassword: z.string().min(1, { message: "Please confirm your password" }),
+  confirmPassword: z.string().min(8, { message: "Please confirm your password" }),
 }).refine((data) => data.password === data.confirmPassword, {
   message: "Passwords do not match",
   path: ["confirmPassword"],
@@ -57,6 +57,7 @@ function PasswordResetConfirm({ className }: PasswordResetConfirmProps) {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [samePreviousPassword, setSamePreviousPassword] = useState(false);
+  const [confirmPasswordTouched, setConfirmPasswordTouched] = useState(false);
 
   const password = watch("password");
   const confirmPassword = watch("confirmPassword");
@@ -88,6 +89,7 @@ function PasswordResetConfirm({ className }: PasswordResetConfirmProps) {
 
       if (token && apikey) {
         dispatch(logout());
+        navigate('/accounts/signin');
         localStorage.removeItem('logininprogress');
       }
     };
@@ -210,7 +212,11 @@ function PasswordResetConfirm({ className }: PasswordResetConfirmProps) {
             <p className="text-center text-gray-400 text-sm mt-6">
               <button
                 type="button"
-                onClick={() => navigate('/accounts/signin')}
+                onClick={() => {
+                  localStorage.clear();
+                  removeAllCookies();
+                  navigate('/accounts/signin');
+                }}
                 className="text-cyan-400 hover:text-cyan-300"
               >
                 Back to Sign In
@@ -244,7 +250,11 @@ function PasswordResetConfirm({ className }: PasswordResetConfirmProps) {
               variant="signup" 
               size="xl"
               className="w-full"
-              onClick={() => navigate('/accounts/signin')}
+              onClick={() => {
+                localStorage.clear();
+                removeAllCookies();
+                navigate('/accounts/signin');
+              }}
             >
               Go to Sign In
             </Button>
@@ -321,7 +331,7 @@ function PasswordResetConfirm({ className }: PasswordResetConfirmProps) {
                         <div key={check} className={`flex items-center gap-1 ${passed ? 'text-emerald-400' : 'text-gray-500'}`}>
                           {passed ? <Check className="h-3 w-3" /> : <X className="h-3 w-3" />}
                           <span className="capitalize">
-                            {check === 'length' ? '8+ chars' : 
+                            {check === 'length' ? '8+ characters' : 
                             check === 'lowercase' ? 'lowercase' :
                             check === 'uppercase' ? 'uppercase' :
                             check === 'numbers' ? 'numbers' : 'special'}
@@ -343,7 +353,11 @@ function PasswordResetConfirm({ className }: PasswordResetConfirmProps) {
                     size="xl"
                     className={`pr-10 ${errors.confirmPassword ? "border-red-500 focus-visible:border-red-500 focus-visible:ring-red-500/20" : ""}`}
                     required
-                    {...register("confirmPassword")}
+                    {...register("confirmPassword", {
+                      onChange: () => {
+                        setConfirmPasswordTouched(true);
+                      }
+                    })}
                   />
                   <button
                     type="button"
@@ -358,13 +372,13 @@ function PasswordResetConfirm({ className }: PasswordResetConfirmProps) {
                   <p className="text-red-400 text-xs mt-1">{errors.confirmPassword.message}</p>
                 )}
                 
-                {passwordsMatch && (
+                {passwordsMatch && confirmPassword && (
                   <p className="text-emerald-400 text-xs mt-1 flex items-center gap-1">
                     <Check className="h-3 w-3" />
                     Passwords match
                   </p>  
                 )}
-                {!passwordsMatch && (
+                {!passwordsMatch && confirmPasswordTouched && confirmPassword && (
                   <p className="text-red-400 text-xs mt-1 flex items-center gap-1">
                     <X className="h-3 w-3" />
                     Passwords do not match
@@ -386,7 +400,11 @@ function PasswordResetConfirm({ className }: PasswordResetConfirmProps) {
                 Remember your password?{" "}
                 <button
                   type="button"
-                  onClick={() => navigate('/accounts/signin')}
+                  onClick={() => {
+                    localStorage.clear();
+                    removeAllCookies();
+                    navigate('/accounts/signin');
+                  }}
                   className="text-cyan-400 hover:text-cyan-300"
                 >
                   Sign in

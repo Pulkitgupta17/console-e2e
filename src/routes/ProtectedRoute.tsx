@@ -1,5 +1,6 @@
-import { Outlet, Navigate } from "react-router";
+import { Navigate } from "react-router";
 import { validateUser } from "@/store/authSlice";
+import { MYACCOUNT_URL } from "@/constants/global.constants";
 
 const ProtectedRoute = () => {
   const isAuthenticated = validateUser();
@@ -10,9 +11,11 @@ const ProtectedRoute = () => {
     return <Navigate to="/accounts/password-reset" replace />;
   }
 
+  // Redirect authenticated users to MYACCOUNT_URL instead of internal dashboard
   if (isAuthenticated) {
-    return <Outlet />
-
+    // return <Outlet />
+    window.location.href = MYACCOUNT_URL;
+    return null;
   } else {
     return <Navigate to="/accounts/signin" replace />;
   }

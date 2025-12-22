@@ -9,7 +9,7 @@ import {
 import { Input } from "@/components/ui/input"
 import { cn } from "@/lib/utils"
 import { useState, useEffect, useRef } from "react"
-import { useNavigate } from "react-router-dom"
+import { useNavigate, useLocation } from "react-router-dom"
 import { Eye, EyeOff, Info } from "lucide-react"
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
@@ -23,10 +23,14 @@ import CryptoJS from "crypto-js";
 import API from "@/axios";
 import TwoFactorAuth from "./twoFactorAuth";
 import GoogleAuthenticator from "./google-authenticator";
-import { getCookie, removeCookie, setCookie } from "@/services/commonMethods";
-import { googleCallback, verifySocialEmail, loginGoogle, loginGithub, githubCallback, getCustomerValidationStatus, verifyGATotp, verifyGABackupCode, reportLostGAKey } from "@/services/signupService";
+import SSOOrganizationForm from "./sso-organization-form";
+import CompleteSocialSignupForm from "./complete-social-signup";
+import { getCookie, removeCookie, setCookie, setSessionTimeCookie, setSessionFor60Days, postCrossDomainMessage, navigateWithQueryParams, captureUTMParameters, removeAllCookies } from "@/services/commonMethods";
+import { googleCallback, verifySocialEmail, loginGoogle, loginGithub, githubCallback, getCustomerValidationStatus, verifyGATotp, verifyGABackupCode, reportLostGAKey, requestSSOLogin } from "@/services/signupService";
 import type { SocialUser } from "@/interfaces/signupInterface";
 import { Spinner } from '@/components/ui/shadcn-io/spinner';
+import { MYACCOUNT_URL, MARKETPLACE_URL, NOTEBOOK_URL, BASE_URL } from "@/constants/global.constants";
+import { LoadingScreen } from "@/components/LoadingScreen"
 
 declare global {
   interface Window {
@@ -53,8 +57,9 @@ const LoginForm: React.FC<{
   error?: string | null;
   onGoogleLogin: () => void;
   onGithubLogin: () => void;
+  onSSOLogin: () => void;
   isSocialLoading: boolean;
-}> = ({ onSubmit, isLoading, error, onGoogleLogin, onGithubLogin, isSocialLoading }) => {
+}> = ({ onSubmit, isLoading, error, onGoogleLogin, onGithubLogin, onSSOLogin, isSocialLoading }) => {
   const { register, handleSubmit, formState: { isSubmitting, isValid } } = useForm<FormFields>({
     defaultValues: { email: "", password: "" },
     resolver: zodResolver(schema),
@@ -62,7 +67,6 @@ const LoginForm: React.FC<{
   const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(false);
   const navigate = useNavigate();
-  
   const handleFormSubmit = async (data: FormFields) => {
     await onSubmit(data, rememberMe);
   };
@@ -72,8 +76,8 @@ const LoginForm: React.FC<{
   };
 
   return (
-    <div className="w-full min-w-md mx-auto">
-      <Card className="border-gray-800/50 backdrop-blur-sm form-fade-in" style={{ backgroundColor: 'var(--signup-card-bg)' }}>
+    <div className="w-full min-w-md mx-auto max-w-md overflow-visible">
+      <Card className="border-gray-800/50 backdrop-blur-sm form-fade-in overflow-visible" style={{ backgroundColor: 'var(--signup-card-bg)' }}>
         <CardHeader className="text-left space-y-2">
           <CardTitle className="text-2xl font-bold text-white">
             Welcome back
@@ -82,15 +86,16 @@ const LoginForm: React.FC<{
             Sign in to your E2E Networks account
           </CardDescription>
         </CardHeader>
-        <CardContent>
+        <CardContent className="overflow-visible">
           <form className="space-y-4 mt-8" onSubmit={handleSubmit(handleFormSubmit)}>
-            <div className="space-y-4">
+            <div className="space-y-4 w-full overflow-visible">
               <div className="space-y-2">
                 <Input
                   id="email"
                   type="email"
                   placeholder="Email"
-                  className="bg-gray-800/50 border-gray-700 text-white placeholder:text-gray-500 input-glow focus:border-cyan-500 h-14"
+                  variant="primary"
+                  size="xl"
                   required
                   {...register("email")}
                 />
@@ -102,7 +107,9 @@ const LoginForm: React.FC<{
                     id="password"
                     type={showPassword ? "text" : "password"}
                     placeholder="Password"
-                    className="bg-gray-800/50 border-gray-700 text-white placeholder:text-gray-500 input-glow focus:border-cyan-500 pr-10 h-14"
+                    variant="primary"
+                    size="xl"
+                    className="pr-10"
                     required
                     {...register("password")}
                   />
@@ -117,8 +124,17 @@ const LoginForm: React.FC<{
               </div>
               
               {error && (
-                <div className="text-red-400 text-sm text-center">
-                  {typeof error === "string" ? error : JSON.stringify(error)}
+                <div className="text-red-400 text-sm text-center break-words overflow-wrap-anywhere max-w-full px-2 whitespace-normal">
+                  {(() => {
+                    if (typeof error === "string") {
+                      return error;
+                    }
+                    if (error && typeof error === "object") {
+                      const errorObj = error as any;
+                      return errorObj.errors || errorObj.message || errorObj.error || JSON.stringify(error);
+                    }
+                    return String(error);
+                  })()}
                 </div>
               )}
 
@@ -174,21 +190,22 @@ const LoginForm: React.FC<{
                 </div>
               </div>
               
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-2 gap-3 px-1">
                 <Button 
                   variant="social" 
                   type="button"
                   size="xl"
                   onClick={onGoogleLogin}
                   disabled={isSocialLoading}
+                  className="min-w-0"
                 >
-                  <svg className="w-4 h-4 mr-2" viewBox="0 0 24 24">
+                  <svg className="w-4 h-4 mr-2 shrink-0" viewBox="0 0 24 24">
                     <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
                     <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
                     <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
                     <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
                   </svg>
-                  {isSocialLoading ? "Loading..." : "Google"}
+                  <span className="truncate">{isSocialLoading ? "Loading..." : "Google"}</span>
                 </Button>
                 <Button 
                   variant="social" 
@@ -196,11 +213,30 @@ const LoginForm: React.FC<{
                   size="xl"
                   onClick={onGithubLogin}
                   disabled={isSocialLoading}
+                  className="min-w-0"
                 >
-                  <svg className="w-4 h-4 mr-2" fill="currentColor" viewBox="0 0 24 24">
+                  <svg className="w-4 h-4 mr-2 shrink-0" fill="currentColor" viewBox="0 0 24 24">
                     <path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/>
                   </svg>
-                  {isSocialLoading ? "Loading..." : "GitHub"}
+                  <span className="truncate">{isSocialLoading ? "Loading..." : "GitHub"}</span>
+                </Button>
+              </div>
+              
+              <div className="mt-3 px-1">
+                <Button 
+                  variant="social" 
+                  type="button"
+                  size="xl"
+                  onClick={onSSOLogin}
+                  disabled={isSocialLoading}
+                  className="w-full"
+                >
+                  <svg viewBox="0 0 25 25" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" className="size-5 mr-2">
+                    <path d="M10.1078 0.908018C9.10391 1.0213 8.00235 1.43927 7.17813 2.01739C6.76407 2.31036 6.10391 2.93927 5.81094 3.32599C5.25626 4.06036 4.89688 4.79083 4.67813 5.6463L4.61172 5.91583L4.22501 6.04083C3.42813 6.29474 2.84219 6.6463 2.27579 7.21271C1.52969 7.95489 1.10391 8.7713 0.928131 9.80255C0.830475 10.3651 0.830475 10.8182 0.928131 11.3807C1.10391 12.408 1.52579 13.2205 2.27579 13.9744C2.81094 14.5135 3.4086 14.8807 4.12344 15.1229C4.68985 15.3143 5.05704 15.3572 6.04922 15.3572H6.94376V14.576V13.7947H6.05313C5.29141 13.7947 5.11563 13.783 4.85001 13.7166C4.2211 13.5565 3.56094 13.1424 3.15469 12.6463C2.90469 12.3416 2.63516 11.826 2.52188 11.4276C2.4086 11.0252 2.39688 10.2361 2.50235 9.85333C2.68204 9.19708 2.90469 8.81036 3.36954 8.34552C4.01016 7.70489 4.59219 7.46271 5.70157 7.36896L6.00235 7.34161L6.02579 7.12286C6.16641 5.82599 6.41641 5.11505 7.01016 4.32599C7.74454 3.34942 8.78751 2.71661 10.0219 2.50567C12.0883 2.15021 14.1547 3.2088 15.0805 5.09552C15.4594 5.86896 15.5766 6.48614 15.5766 7.72443V8.55255L16.3695 8.56818C17.0961 8.5838 17.1859 8.59552 17.475 8.68927C18.2563 8.94708 18.9008 9.59161 19.1586 10.3729C19.2484 10.6463 19.2641 10.7518 19.2641 11.1776C19.2641 11.6033 19.2484 11.7088 19.1586 11.9822C18.9008 12.7635 18.2602 13.4041 17.475 13.6658C17.1625 13.7713 17.1391 13.7713 15.9594 13.7869L14.7563 13.8026V14.5799V15.3572H15.8617C17.0727 15.3572 17.4711 15.3143 17.9945 15.1346C19.9359 14.4705 21.1156 12.5213 20.7914 10.5174C20.5102 8.77911 19.1117 7.34943 17.4242 7.07208L17.143 7.02521L17.1234 6.76739C16.9828 5.18927 16.4086 3.90411 15.3461 2.80255C13.975 1.38849 12.0453 0.689268 10.1078 0.908018Z" fill="#99A1B3"/>
+                    <path d="M10.1859 6.66583C8.56094 6.96271 7.2875 8.24396 7.00234 9.87286C6.77969 11.1619 7.29141 12.5994 8.2875 13.4549L8.50625 13.6424V16.2401V18.8377L9.47109 19.8494L10.4359 20.8651H10.8305H11.2211L12.2094 19.8533L13.1937 18.8416V16.2401V13.6424L13.4125 13.4549C14.4086 12.5994 14.9203 11.1619 14.6977 9.87286C14.4125 8.23224 13.1312 6.95099 11.4906 6.66583C11.0844 6.59552 10.5844 6.59552 10.1859 6.66583ZM11.3383 8.22833C12.2172 8.41193 12.9516 9.1463 13.1352 10.0252C13.3461 11.0408 12.893 12.0252 11.9672 12.5643L11.6352 12.7596L11.6312 15.4783V18.1971L11.2562 18.5916C11.0492 18.8104 10.8695 18.9901 10.8539 18.9901C10.8344 18.9901 10.6547 18.8182 10.4477 18.6111L10.0687 18.2283V17.6619L10.0648 17.0955L10.6039 16.5838L11.143 16.0682L10.6039 15.5018L10.0687 14.9354V13.8494L10.0648 12.7596L9.73281 12.5643C8.34609 11.7596 8.09219 9.98224 9.20547 8.86896C9.7875 8.28693 10.5414 8.06036 11.3383 8.22833Z" fill="#99A1B3"/>
+                    <path d="M10.5844 8.99395C10.3969 9.04864 10.1586 9.30645 10.1039 9.50567C10.0141 9.85333 10.1508 10.2166 10.4477 10.4002C10.6703 10.5408 11.0492 10.533 11.268 10.3885C11.5102 10.2283 11.6117 10.0369 11.6117 9.73224C11.6117 9.43145 11.5102 9.23614 11.2797 9.0838C11.1117 8.97052 10.7914 8.93145 10.5844 8.99395Z" fill="#99A1B3"/>
+                  </svg>
+                  <span>{isSocialLoading ? "Loading..." : "Sign in with SSO"}</span>
                 </Button>
               </div>
               
@@ -208,7 +244,11 @@ const LoginForm: React.FC<{
                 Don&apos;t have an account?{" "}
                 <button
                   type="button"
-                  onClick={() => navigate('/accounts/signup')}
+                  onClick={() => {
+                    localStorage.clear();
+                    removeAllCookies();
+                    navigate(navigateWithQueryParams('/accounts/signup'))}
+                  }
                   className="text-cyan-400 hover:text-cyan-300"
                 >
                   Sign up
@@ -230,6 +270,7 @@ function Signin({
   const { executeRecaptcha } = useGoogleReCaptcha();
   const dispatch = useAppDispatch();
   const navigate = useNavigate();
+  const location = useLocation();
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [show2FA, setShow2FA] = useState(false);
@@ -243,14 +284,46 @@ function Signin({
   const [loginResponseData, setLoginResponseData] = useState<any>(null);
   const hasProcessedOAuth = useRef(false);
   const hasRequestedOTP = useRef(false);
+  const [showSSOForm, setShowSSOForm] = useState(false);
+  const [ssoError, setSsoError] = useState<string | null>(null);
+  const [isSSOLoading, setIsSSOLoading] = useState(false);
+  const hasProcessedSSO = useRef(false);
+  const [showSocialSignup, setShowSocialSignup] = useState(false);
+  const [socialUser, setSocialUser] = useState<SocialUser | null>(null);
+  const [showLoadingScreen, setShowLoadingScreen] = useState(false);
+  useEffect(() => {
+    captureUTMParameters();
+  }, []);
 
   useEffect(() => {
+    if(!getCookie('token')){
+      removeCookie('user');
+    }  
     localStorage.setItem('password_expired', 'false');
   }, []);
 
+  useEffect(() => {
+    const searchParams = new URLSearchParams(location.search);
+    const action = searchParams.get('action');
+    
+    if (action === 'sessionExpire') {
+      navigate(location.pathname, { replace: true });
+      dispatch(logout());
+      toast.error("Your login session has been expired.");
+    }
+  }, [location.search, location.pathname, navigate]);
+
   // Check if user is logged out (no currentUser in localStorage) - clear storage and cookies
   useEffect(() => {
-    const currentUser = localStorage.getItem('currentUser');
+    // Check if we're in the middle of an OAuth callback - preserve OAuth state
+    const urlParams = new URLSearchParams(window.location.search);
+    const code = urlParams.get('code');
+    const state = urlParams.get('state');
+    const scope = urlParams.get('scope');
+    const isOAuthCallback = (code && state) || (code && scope);
+    const githubOAuthState = localStorage.getItem('github_oauth_state');
+    const googleOAuthState = localStorage.getItem('google_oauth_state');
+    const currentUser = localStorage.getItem('currentUser') || getCookie('user');
     if (!currentUser) {
       localStorage.clear();
       removeCookie('token');
@@ -258,6 +331,25 @@ function Signin({
       removeCookie('user');
       removeCookie('yyy_xxx');
       localStorage.setItem('password_expired', 'false');
+      if (isOAuthCallback) {
+        if (githubOAuthState) {
+          localStorage.setItem('github_oauth_state', githubOAuthState);
+        }
+        if (googleOAuthState) {
+          localStorage.setItem('google_oauth_state', googleOAuthState);
+        }
+      }
+    }
+    if(!getCookie('token')){
+      localStorage.clear();
+      if (isOAuthCallback) {
+        if (githubOAuthState) {
+          localStorage.setItem('github_oauth_state', githubOAuthState);
+        }
+        if (googleOAuthState) {
+          localStorage.setItem('google_oauth_state', googleOAuthState);
+        }
+      }
     }
   }, []);
 
@@ -276,7 +368,7 @@ function Signin({
         localStorage.removeItem("logininprogress");
       }
       else{
-        navigate('/');
+          window.location.replace(MYACCOUNT_URL);
         return;
       }
     }
@@ -285,11 +377,11 @@ function Signin({
   // Handle OAuth callbacks (Google and GitHub)
   useEffect(() => {
     const handleOAuthCallback = async () => {
-      // Prevent duplicate processing
+      // Prevent duplicate processing - check first
       if (hasProcessedOAuth.current) {
         return;
       }
-
+      
       const urlParams = new URLSearchParams(window.location.search);
       const code = urlParams.get('code');
       const scope = urlParams.get('scope');
@@ -300,6 +392,7 @@ function Signin({
         return;
       }
 
+      // Set flag immediately to prevent duplicate calls (especially in React StrictMode)
       hasProcessedOAuth.current = true;
 
       try {
@@ -310,7 +403,6 @@ function Signin({
         if (code && scope && scope.includes('email')) {
           // Step 1: Google callback
           const callbackResponse = await googleCallback(code, 'login');
-          
           if (callbackResponse.code !== 200 || !callbackResponse.data) {
             toast.error("Failed to authenticate with Google");
             return;
@@ -326,7 +418,6 @@ function Signin({
             return;
           }
 
-          // If email doesn't exist, redirect to signup
           if (!emailVerifyResponse.data.email_exists) {
             const user: SocialUser = {
               name: callbackResponse.data.name || "",
@@ -336,8 +427,9 @@ function Signin({
               provider: "Google",
             };
             localStorage.setItem('socialuser', JSON.stringify(user));
+            setSocialUser(user);
+            setShowSocialSignup(true);
             toast.info("No account found. Please sign up first.");
-            navigate('/accounts/signup');
             return;
           }
 
@@ -370,7 +462,9 @@ function Signin({
 
             // Dispatch to Redux (saves to cookies + localStorage)
             dispatch(loginAction({ token, apiKey, user }));
-
+            if (userKey.phone) {
+              setUserPhone(userKey.phone);
+            }
             // Clean URL
             window.history.replaceState({}, document.title, '/accounts/signin');
 
@@ -384,7 +478,6 @@ function Signin({
         else if (code && state) {
           const storedState = localStorage.getItem('github_oauth_state');
           const [receivedState] = state.split(',');
-
           // CSRF validation
           if (receivedState !== storedState) {
             toast.error("CSRF Error! Authentication Failed");
@@ -412,8 +505,8 @@ function Signin({
             return;
           }
 
-          // If email doesn't exist, redirect to signup
           if (!emailVerifyResponse.data.email_exists) {
+            toast.info("No account found. Please sign up first.");
             const user: SocialUser = {
               name: callbackResponse.data.name || "",
               email: email,
@@ -423,8 +516,8 @@ function Signin({
             };
             localStorage.setItem('socialuser', JSON.stringify(user));
             localStorage.removeItem('github_oauth_state');
-            toast.info("No account found. Please sign up first.");
-            navigate('/accounts/signup');
+            setSocialUser(user);
+            setShowSocialSignup(true);
             return;
           }
 
@@ -458,11 +551,12 @@ function Signin({
 
             // Dispatch to Redux (saves to cookies + localStorage)
             dispatch(loginAction({ token, apiKey, user }));
-
+            if (userKey.phone) {
+              setUserPhone(userKey.phone);
+            }
             // Clean URL
             window.history.replaceState({}, document.title, '/accounts/signin');
             localStorage.removeItem('github_oauth_state');
-
             // Check for 2FA or navigate to dashboard
             await checkFor2faOrDashboard(respData);
           } else {
@@ -481,6 +575,151 @@ function Signin({
       handleOAuthCallback();
     }, [navigate, dispatch]);
 
+  // Handle SSO callback
+  useEffect(() => {
+    const handleSSOCallback = async () => {
+      // Prevent duplicate processing
+      if (hasProcessedSSO.current) {
+        return;
+      }
+
+      const urlParams = new URLSearchParams(window.location.search);
+      const ssoCode = urlParams.get('sso_code');
+      const dataParam = urlParams.get('data');
+      const ssoError = urlParams.get('sso_error');
+
+      // Only process if we have SSO params
+      if (!ssoCode && !dataParam && !ssoError) {
+        return;
+      }
+
+      hasProcessedSSO.current = true;
+
+      try {
+        setIsSSOLoading(true);
+        setShowSpinnerOverlay(true);
+        localStorage.setItem("logininprogress", "yes");
+        // Handle SSO error
+        if (ssoError === "True" || ssoError === "true") {
+          let errorMessage = "SSO authentication failed. Please try again.";
+          
+          if (dataParam) {
+            try {
+              const decodedData = JSON.parse(decodeURIComponent(dataParam));
+              errorMessage = decodedData.message || decodedData.errors || errorMessage;
+            } catch (e) {
+              // Use default error message
+            }
+          }
+          
+          toast.error(errorMessage);
+          setSsoError(errorMessage);
+          // Clean URL
+          window.history.replaceState({}, document.title, '/accounts/signin');
+          return;
+        }
+
+        // Handle SSO success
+        if (ssoCode && dataParam) {
+          // Decode the data parameter
+          let authData;
+          try {
+            authData = JSON.parse(decodeURIComponent(dataParam));
+          } catch (e) {
+            toast.error("Failed to parse SSO authentication data");
+            window.history.replaceState({}, document.title, '/accounts/signin');
+            return;
+          }
+
+          // Check if response has error
+          if (authData.message && authData.code !== 200) {
+            toast.error(authData.message || "SSO authentication failed");
+            window.history.replaceState({}, document.title, '/accounts/signin');
+            return;
+          }
+
+          // Extract authentication data
+          // Prioritize getting auth_token from cookies (as per requirements)
+          const respData = authData.data || authData;
+          const token = getCookie('token') || respData?.auth?.[0]?.auth_token;
+          const apiKey = respData?.auth?.[0]?.apikey;
+          const userKey = respData?.user;
+          const sessionId = respData?.sessionId || authData.sessionId;
+          const csrfCookie = authData?.CSRF_COOKIE;
+
+          // Set CSRF cookie if available
+          if (csrfCookie) {
+            const expiryDate = new Date();
+            expiryDate.setDate(expiryDate.getDate() + 10);
+            document.cookie = `csrftoken=${csrfCookie}; expires=${expiryDate.toUTCString()}; path=/; SameSite=Strict`;
+          }
+
+          if (token && apiKey && userKey) {
+            // Store phone number for 2FA display
+            if (userKey.phone) {
+              setUserPhone(userKey.phone);
+            }
+
+            // Check if GA is enabled before dispatching loginAction
+            const isGaEnabled = respData?.is_ga_enabled;
+            if (respData?.is_default_dashboard_tir) {
+              localStorage.setItem('redirectToTIR', 'true');
+            }
+
+            if (!isGaEnabled) {
+              // Only dispatch loginAction if GA is not enabled
+              const user: User = {
+                username: userKey.username || "",
+                first_name: userKey.first_name || "",
+                last_name: userKey.last_name || "",
+                phone: userKey.phone || "",
+                customer_country: userKey.customer_country || "",
+                crn: userKey.crn || "",
+                location: userKey.location || "",
+                projectId: respData?.project_id || "",
+                email: userKey.current_user_email || userKey.username || "",
+              };
+
+              dispatch(loginAction({ token, apiKey, user }));
+            } else {
+              // Store tokens temporarily for GA verification
+              setCookie('token', token);
+              setCookie('apikey', apiKey);
+              if (respData?.contact_person_id) {
+                setCookie('contact_person_id', respData.contact_person_id);
+              }
+            }
+
+            // Prepare response data structure for 2FA check
+            const responseData = {
+              data: respData,
+              sessionId: sessionId,
+              CSRF_COOKIE: csrfCookie,
+            };
+            // Clean URL
+            window.history.replaceState({}, document.title, '/accounts/signin');
+
+            // Check for 2FA or navigate to dashboard
+            await checkFor2faOrDashboard(responseData);
+          } else {
+            toast.error("Failed to retrieve authentication data from SSO");
+            window.history.replaceState({}, document.title, '/accounts/signin');
+          }
+        }
+      } catch (error: any) {
+        toast.error(error?.response?.data?.message || error?.message || "SSO authentication failed. Please try again.");
+        setSsoError("SSO authentication failed. Please try again.");
+        window.history.replaceState({}, document.title, '/accounts/signin');
+      } finally {
+        setIsSSOLoading(false);
+        setShowSpinnerOverlay(false);
+        localStorage.removeItem('logininprogress');
+      }
+    };
+
+    handleSSOCallback();
+  }, [navigate, dispatch]);
+
   // Auto-request OTP when 2FA screen is shown and reCAPTCHA becomes available
   useEffect(() => {
     const requestOTPWhenReady = async () => {
@@ -494,7 +733,7 @@ function Signin({
 
       try {
         hasRequestedOTP.current = true;
-        const recaptchaToken = await executeRecaptcha("request_otp");
+        const recaptchaToken = await executeRecaptcha("otp");
         await handleRequestOTP(recaptchaToken);
       } catch (error) {
         hasRequestedOTP.current = false; 
@@ -511,7 +750,6 @@ function Signin({
     const failedTwoFactorAllowed = CryptoJS.MD5(`${respData?.sessionId}:${SUCCESS_FAILED_TEXT}`).toString();
     const failedTwoFactorDeviceVerified = CryptoJS.MD5(`${respData?.sessionId}:${VERIFIED_FAILED_TEXT}`).toString();
     const successTwoFactorDeviceVerified = CryptoJS.MD5(`${respData?.sessionId}:${VERIFIED_SUCCESS_TEXT}`).toString();
-
     // Access properties through respData.data
     const twoFactorAllowed = respData?.data?.is_two_factor_allowed;
     const twoFactorDeviceVerified = respData?.data?.is_two_factor_device_verified;
@@ -534,7 +772,7 @@ function Signin({
       if (executeRecaptcha) {
         try {
           hasRequestedOTP.current = true;
-          const recaptchaToken = await executeRecaptcha("request_otp");
+          const recaptchaToken = await executeRecaptcha("otp");
           await handleRequestOTP(recaptchaToken);
         } catch (error) {
           hasRequestedOTP.current = false; // Reset so useEffect can retry
@@ -552,13 +790,8 @@ function Signin({
         // Set cookies temporarily so API calls can authenticate
         setCookie('token', token);
         setCookie('apikey', apiKey);
-        
-        // Store redirect flags
-        if (respData?.data?.is_default_dashboard_tir) {
-          localStorage.setItem('redirectToTIR', 'true');
-        }
         if (respData?.data?.contact_person_id) {
-          localStorage.setItem('contact_person_id', respData.data.contact_person_id);
+          setCookie('contact_person_id', respData.data.contact_person_id);
         }
         
         if (executeRecaptcha) {
@@ -574,6 +807,7 @@ function Signin({
             removeCookie('token');
             removeCookie('apikey');
             dispatch(logout());
+            navigate("/accounts/signin");
             localStorage.removeItem("logininprogress");
           }
         } else {
@@ -599,14 +833,72 @@ function Signin({
       } catch (error) {
         console.warn("Failed to get customer validation status:", error);
       }
+      setShowLoadingScreen(true);
       
       // Remove login progress flag before navigating
       localStorage.removeItem("logininprogress");
       
-      toast.success("Login successful!");
-      navigate("/");
+      // Handle redirect based on conditions
+      handleSignInRedirect(rememberMe);
       return;
     }
+  };
+
+  if (showLoadingScreen) {
+    return <LoadingScreen />;
+  }
+
+  // Handle redirect logic based on returnUrl, source cookie, and redirectToTIR
+  const handleSignInRedirect = (rememberMe: boolean = false) => {
+    // Set session cookies based on remember me
+    if (rememberMe) {
+      setSessionFor60Days();
+    } else {
+      setSessionTimeCookie();
+    }
+
+    // Check for returnUrl query parameter
+    const returnUrl = new URLSearchParams(window.location.search).get('returnUrl') || '/';
+    
+    if (returnUrl !== '/') {
+      // Redirect to myaccount with returnUrl
+      window.location.replace(`${MYACCOUNT_URL}${returnUrl.startsWith('/') ? returnUrl : '/' + returnUrl}`);
+      return;
+    }
+
+    // Source URL mapping
+    const sourceUrlMap: Record<string, string> = {
+      marketplace: MARKETPLACE_URL,
+      gpu: NOTEBOOK_URL,
+    };
+
+    const source = getCookie('source');
+    const targetUrl = sourceUrlMap[source];
+
+    // Delete source cookie if it exists
+    if (source) {
+      removeCookie('source');
+    }
+
+    // Redirect to target URL if source is set
+    if (targetUrl) {
+      toast.info(source === 'marketplace' ? 'You will be redirected to Marketplace' : 'You will be redirected to TIR - AI Platform');
+      postCrossDomainMessage(targetUrl, 0);
+      return;
+    }
+
+    // Check for redirectToTIR flag
+    const redirectToTIR = localStorage.getItem('redirectToTIR');
+    if (redirectToTIR && NOTEBOOK_URL) {
+      localStorage.removeItem('redirectToTIR');
+      toast.info('You will be redirected to TIR - AI Platform');
+      postCrossDomainMessage(NOTEBOOK_URL, 0);
+      return;
+    }
+
+    // Default redirect to myaccount
+    toast.success("Login successful!");
+    window.location.replace(MYACCOUNT_URL);
   };
 
   const handleRequestOTP = async (recaptcha: string) => {
@@ -665,7 +957,7 @@ function Signin({
             const cookieExpiry = new Date();
             cookieExpiry.setDate(cookieExpiry.getDate() + 400); // 400 days expiry for cookie
             const domain = import.meta.env.VITE_domainForCookie;
-            let cookieString = `${deviceData.key}=${deviceData.value}; expires=${cookieExpiry.toUTCString()}; path=/; SameSite=Strict`;
+            let cookieString = `${deviceData.key}=${deviceData.value}; expires=${cookieExpiry.toUTCString()}; path=/;`;
             if (domain && !window.location.hostname.includes('localhost')) {
               cookieString += `; domain=${domain}`;
             }
@@ -699,7 +991,7 @@ function Signin({
           const cookieExpiry = new Date();
           cookieExpiry.setDate(cookieExpiry.getDate() + 400); // 400 days expiry for cookie
           const domain = import.meta.env.VITE_domainForCookie;
-          let cookieString = `${deviceData.key}=${deviceData.value}; expires=${cookieExpiry.toUTCString()}; path=/; SameSite=Strict`;
+          let cookieString = `${deviceData.key}=${deviceData.value}; expires=${cookieExpiry.toUTCString()}; path=/;`;
           if (domain && !window.location.hostname.includes('localhost')) {
             cookieString += `; domain=${domain}`;
           }
@@ -712,12 +1004,13 @@ function Signin({
         } catch (error) {
           console.warn("Failed to get customer validation status:", error);
         }
+        setShowLoadingScreen(true);
 
         // Remove login progress flag before navigating
         localStorage.removeItem("logininprogress");
 
-        toast.success("Login successful!");
-        navigate("/");
+        // Handle redirect based on conditions
+        handleSignInRedirect(rememberMe);
       } else {
         toast.error(res.data?.data?.message || "Invalid Code");
       }
@@ -773,7 +1066,7 @@ function Signin({
             const cookieExpiry = new Date();
             cookieExpiry.setDate(cookieExpiry.getDate() + 400); // 400 days expiry for cookie
             const domain = import.meta.env.VITE_domainForCookie;
-            let cookieString = `${deviceData.key}=${deviceData.value}; expires=${cookieExpiry.toUTCString()}; path=/; SameSite=Strict`;
+            let cookieString = `${deviceData.key}=${deviceData.value}; expires=${cookieExpiry.toUTCString()}; path=/;`;
             if (domain && !window.location.hostname.includes('localhost')) {
               cookieString += `; domain=${domain}`;
             }
@@ -826,7 +1119,7 @@ function Signin({
         localStorage.removeItem("logininprogress");
 
         toast.success("Login successful!");
-        navigate("/");
+        window.location.replace(MYACCOUNT_URL);
       } else {
         const errorMessage = res.data?.data?.message || "Verification failed! Please try again";
         toast.error(errorMessage);
@@ -859,7 +1152,7 @@ function Signin({
     try {
       const recaptchaToken = await executeRecaptcha("login");
       const response = await login(data.email, data.password, recaptchaToken, "v3");
-
+      
       if (response.code === 200 && response.data) {
         // Check if response has session data for 2FA check
         if (response.data?.sessionId || response.data?.data?.is_two_factor_allowed) {
@@ -881,6 +1174,9 @@ function Signin({
             // Check if GA is enabled before dispatching loginAction
             // GA verification needs tokens to be stored temporarily, not in cookies yet
             const isGaEnabled = respData?.data?.is_ga_enabled;
+            if (respData?.data?.is_default_dashboard_tir) {
+              localStorage.setItem('redirectToTIR', 'true');
+            }
             
             if (!isGaEnabled) {
               // Only dispatch loginAction if GA is not enabled
@@ -934,12 +1230,12 @@ function Signin({
             navigate("/accounts/password-reset");
             return;
           }
-          
+          setShowLoadingScreen(true);
           // Remove login progress flag before navigating
           localStorage.removeItem("logininprogress");
           
-          toast.success("Login successful!");
-          navigate("/");
+          // Handle redirect based on conditions
+          handleSignInRedirect(rememberMe);
         }
       }
     } catch (err: any) {
@@ -962,6 +1258,7 @@ function Signin({
     setError(null);
     hasRequestedOTP.current = false; // Reset OTP flag
     localStorage.removeItem("logininprogress"); // Remove flag when cancelling 2FA
+    navigate("/accounts/signin");
   };
 
   const handleCancelGA = () => {
@@ -974,6 +1271,7 @@ function Signin({
     setError(null);
     setGaRecaptchaToken("");
     setLoginResponseData(null);
+    navigate("/accounts/signin");
   };
 
   const handleVerifyGA = async (code: string, isBackupCode: boolean): Promise<void> => {
@@ -1010,6 +1308,11 @@ function Signin({
         
         const respData = loginResponseData;
         
+        // Store redirectToTIR flag if needed
+        if (respData?.data?.is_default_dashboard_tir) {
+          localStorage.setItem('redirectToTIR', 'true');
+        }
+        
         const isExpired = respData?.data?.is_password_expired || response.data?.is_password_expired;
         localStorage.setItem("password_expired", isExpired ? "true" : "false");
 
@@ -1023,7 +1326,7 @@ function Signin({
           const csrfToken = respData?.CSRF_COOKIE || response.data?.CSRF_COOKIE;
           const expiryDate = new Date();
           expiryDate.setDate(expiryDate.getDate() + 10);
-          document.cookie = `csrftoken=${csrfToken}; expires=${expiryDate.toUTCString()}; path=/; SameSite=Strict`;
+          document.cookie = `csrftoken=${csrfToken}; expires=${expiryDate.toUTCString()}; path=/;`;
         }
 
         // Get auth data from stored response (tokens are already in cookies)
@@ -1057,7 +1360,7 @@ function Signin({
           } catch (error) {
             console.warn("Failed to get customer validation status:", error);
           }
-
+          setShowLoadingScreen(true);
           // Handle session cookies (trust device)
           if (rememberMe) {
             // Set 60-day session
@@ -1070,7 +1373,7 @@ function Signin({
             const cookie_value = expiryDate.toString();
             const domain = import.meta.env.VITE_domainForCookie;
             
-            let cookieString = `${cookie_name}=${cookie_value}; expires=${cookie_expiry_date.toUTCString()}; path=/; SameSite=Strict`;
+            let cookieString = `${cookie_name}=${cookie_value}; expires=${cookie_expiry_date.toUTCString()}; path=/;`;
             if (domain && !window.location.hostname.includes('localhost')) {
               cookieString += `; domain=${domain}`;
             }
@@ -1086,7 +1389,7 @@ function Signin({
             const cookie_value = expiryDate.toString();
             const domain = import.meta.env.VITE_domainForCookie;
             
-            let cookieString = `${cookie_name}=${cookie_value}; expires=${cookie_expiry.toUTCString()}; path=/; SameSite=Strict`;
+            let cookieString = `${cookie_name}=${cookie_value}; expires=${cookie_expiry.toUTCString()}; path=/;`;
             if (domain && !window.location.hostname.includes('localhost')) {
               cookieString += `; domain=${domain}`;
             }
@@ -1098,28 +1401,8 @@ function Signin({
           setGaRecaptchaToken("");
           localStorage.removeItem("logininprogress");
 
-          // Handle redirect
-          const returnUrl = new URLSearchParams(window.location.search).get('returnUrl') || '/';
-          const source = getCookie('source');
-
-          if (returnUrl !== '/') {
-            navigate(returnUrl);
-          } else if (source === 'marketplace') {
-            removeCookie('source');
-            // Handle cross-domain message if needed
-            navigate('/');
-          } else if (source === 'gpu') {
-            removeCookie('source');
-            // Handle cross-domain message if needed
-            navigate('/');
-          } else if (localStorage.getItem('redirectToTIR')) {
-            localStorage.removeItem('redirectToTIR');
-            // Handle cross-domain message if needed
-            navigate('/');
-          } else {
-            toast.success("Login successful!");
-            navigate("/");
-          }
+          // Handle redirect based on conditions
+          handleSignInRedirect(rememberMe);
         }
       } else {
         const errorMsg = response?.errors || response?.data?.errors || "Invalid code. Please try again.";
@@ -1253,22 +1536,21 @@ function Signin({
 
       // Generate random state for CSRF validation
       const randomState = Math.random().toString(36).substring(2);
-      const returnUrl = "/";
-      const state = `${randomState},${returnUrl}`;
-      localStorage.setItem('github_oauth_state', randomState);
+      const state = `${randomState}`;
+      localStorage.setItem('github_oauth_state', state);
 
       // Get current URL for redirect
       const redirectUri = `${window.location.origin}/accounts/signin`;
 
       // GitHub OAuth Client ID
-      const clientId = import.meta.env.VITE_GITHUB_CLIENT_ID || "c3a8b0fea19dbb91103f";
+      const clientId = import.meta.env.VITE_GITHUB_CLIENT_ID;
 
       // Build GitHub OAuth URL
       const githubAuthUrl = new URL("https://github.com/login/oauth/authorize");
       githubAuthUrl.searchParams.append("client_id", clientId);
       githubAuthUrl.searchParams.append("redirect_uri", redirectUri);
       githubAuthUrl.searchParams.append("scope", "user:email");
-      githubAuthUrl.searchParams.append("state", state);
+      githubAuthUrl.searchParams.append("state", randomState);
       githubAuthUrl.searchParams.append("allow_signup", "false");
 
       // Redirect to GitHub
@@ -1281,6 +1563,47 @@ function Signin({
     }
   };
 
+  const handleSSOLogin = () => {
+    setShowSSOForm(true);
+    setSsoError(null);
+  };
+
+  const handleSSOOrganizationSubmit = async (organizationId: string) => {
+    try {
+      setIsSSOLoading(true);
+      setSsoError(null);
+
+      // Get return URL (absolute URL for login callback)
+      // Using /accounts/login to match the expected callback URL format
+      // const returnTo = `${window.location.origin}/accounts/login`;
+      const returnTo = BASE_URL;
+      
+      // Request SSO login URL
+      const response = await requestSSOLogin(organizationId, returnTo);
+      if (response.redirect_url) {
+        // Set login in progress
+        localStorage.setItem("logininprogress", "yes");
+        // const updatedUrl = response.redirect_url.replace(
+        //   /^https:\/\/api-groot\.e2enetworks\.net/,
+        //   "http://localhost:4200"
+        // );
+        // Redirect to SSO provider
+        window.location.href = response.redirect_url;
+      } else {
+        setSsoError("SSO authentication failed. Please try again.");
+        toast.error("SSO authentication failed. Please try again.");
+      }
+    } catch (error: any) {
+      const errorMessage = error?.response?.data?.message || 
+                          error?.response?.data?.error || 
+                          "SSO authentication failed. Please try again.";
+      setSsoError(errorMessage);
+      toast.error(errorMessage);
+    } finally {
+      setIsSSOLoading(false);
+    }
+  };
+
   const handleResendOTP = async (retry_type?: "sms" | "voice") => {
     if (!executeRecaptcha) {
       toast.error("reCAPTCHA not ready");
@@ -1288,7 +1611,7 @@ function Signin({
     }
 
     try {
-      const recaptchaToken = await executeRecaptcha("resend_otp");
+      const recaptchaToken = await executeRecaptcha("otp");
       const payload: any = {
         recaptcha: recaptchaToken,
         version: "v3",
@@ -1304,6 +1627,14 @@ function Signin({
     } catch (error: any) {
       toast.error(error?.response?.data?.message || "Failed to resend OTP");
     }
+  };
+
+  const handleBackFromSocialSignup = () => {
+    localStorage.clear();
+    removeAllCookies();
+    navigate(window.location.pathname, { replace: true });
+    setShowSocialSignup(false);
+    setSocialUser(null);
   };
 
   return (
@@ -1327,6 +1658,21 @@ function Signin({
           isLoading={isLoading}
           error={error}
         />
+      ) : showSSOForm ? (
+        <SSOOrganizationForm
+          onSubmit={handleSSOOrganizationSubmit}
+          onCancel={() => {
+            setShowSSOForm(false);
+            setSsoError(null);
+          }}
+          isLoading={isSSOLoading}
+          error={ssoError}
+        />
+      ) : showSocialSignup && socialUser ? (
+        <CompleteSocialSignupForm
+          socialUser={socialUser}
+          onBack={handleBackFromSocialSignup}
+        />
       ) : (
         <>
           {/* Spinner overlay - positioned relative to form */}
@@ -1342,6 +1688,7 @@ function Signin({
             error={error}
             onGoogleLogin={handleGoogleLogin}
             onGithubLogin={handleGithubLogin}
+            onSSOLogin={handleSSOLogin}
             isSocialLoading={isSocialLoading}
           />
         </>
@@ -1352,8 +1699,7 @@ function Signin({
 
 // ReCaptcha Provider Wrapper
 const SigninWithRecaptcha = (props: React.ComponentProps<"div">) => {
-  const siteKey = "6LeJ7_4jAAAAAKqjyjQ2jEC4yJenDE6R8KyTu9Mt";
-  
+  const siteKey = "6LdJ4SYsAAAAAE6o7fGLD287tW__WDlCqX3Iuf3R";
   if (!siteKey) {
     console.error("VITE_RECAPTCHA_V3_SITE_KEY is not set");
     return (

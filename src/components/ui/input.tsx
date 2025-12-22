@@ -15,9 +15,9 @@ const inputVariants = cva(
       },
       size: {
         default: "h-9",
-        lg: "h-12",
-        xl: "h-14",
-        otp: "h-12 w-12",
+        lg: "h-10",
+        xl: "h-11",
+        otp: "h-10 w-10",
       },
     },
     defaultVariants: {

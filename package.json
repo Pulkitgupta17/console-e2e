@@ -7,7 +7,10 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "stageBuild": "vite build --mode groot",
+    "deployStage": "sh src/deploy.sh -- groot",
+    "deployTest": "sh src/deploy.sh -- test"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.2",
@@ -23,10 +26,11 @@
     "clsx": "^2.1.1",
     "crypto-js": "^4.2.0",
     "jwt-decode": "^4.0.0",
+    "libphonenumber-js": "^1.12.31",
     "lucide-react": "^0.545.0",
-    "react": "^19.1.1",
+    "react": "^19.2.1",
     "react-country-phone-input": "^1.0.2",
-    "react-dom": "^19.1.1",
+    "react-dom": "^19.2.1",
     "react-google-recaptcha": "^3.1.0",
     "react-google-recaptcha-v3": "^1.11.0",
     "react-hook-form": "^7.65.0",
