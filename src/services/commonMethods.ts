@@ -9,6 +9,8 @@ export const setCookie = (cookieName: string, cookieValue: any): any => {
   const cookieOptions: any = {
     expires: today_date,
     path: '/',
+    secure: false,
+    httpOnly: false,
   };
   
   // Only set domain in production. In development (localhost), omit domain so cookies work
@@ -108,7 +110,6 @@ export const setCrossDomainCookies = (): void => {
   const email = localStorage.getItem('email') || getCookie('email');
   
   if (domain && !window.location.hostname.includes('localhost')) {
-    // Set cookies with domain for cross-domain access
     document.cookie = `token=${token}; expires=${today_date.toUTCString()}; domain=${domain}; path=/;`;
     document.cookie = `apikey=${apikey}; expires=${today_date.toUTCString()}; domain=${domain}; path=/;`;
     if (email) {
@@ -125,7 +126,7 @@ export const setCrossDomainCookies = (): void => {
 export const postCrossDomainMessage = (link: string, timeout: number = 1500): void => {
   setCrossDomainCookies();
   setTimeout(() => {
-    window.location.href = link;
+    window.location.replace(link) ;
   }, timeout);
 };
 

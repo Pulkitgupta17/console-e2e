@@ -9,7 +9,7 @@ import {
 import { Input } from "@/components/ui/input"
 import { cn } from "@/lib/utils"
 import { useState, useEffect, useRef } from "react"
-import { useNavigate } from "react-router-dom"
+import { useNavigate, useLocation } from "react-router-dom"
 import { Eye, EyeOff, Info } from "lucide-react"
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
@@ -270,6 +270,7 @@ function Signin({
   const { executeRecaptcha } = useGoogleReCaptcha();
   const dispatch = useAppDispatch();
   const navigate = useNavigate();
+  const location = useLocation();
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [show2FA, setShow2FA] = useState(false);
@@ -298,6 +299,17 @@ function Signin({
     localStorage.setItem('password_expired', 'false');
   }, []);
 
+  useEffect(() => {
+    const searchParams = new URLSearchParams(location.search);
+    const action = searchParams.get('action');
+    
+    if (action === 'sessionExpire') {
+      navigate(location.pathname, { replace: true });
+      dispatch(logout());
+      toast.error("Your login session has been expired.");
+    }
+  }, [location.search, location.pathname, navigate]);
+
   // Check if user is logged out (no currentUser in localStorage) - clear storage and cookies
   useEffect(() => {
     // Check if we're in the middle of an OAuth callback - preserve OAuth state
@@ -308,8 +320,7 @@ function Signin({
     const isOAuthCallback = (code && state) || (code && scope);
     const githubOAuthState = localStorage.getItem('github_oauth_state');
     const googleOAuthState = localStorage.getItem('google_oauth_state');
-    
-    const currentUser = localStorage.getItem('currentUser');
+    const currentUser = localStorage.getItem('currentUser') || getCookie('user');
     if (!currentUser) {
       localStorage.clear();
       removeCookie('token');
@@ -354,7 +365,7 @@ function Signin({
         localStorage.removeItem("logininprogress");
       }
       else{
-        window.location.href = MYACCOUNT_URL;
+          window.location.replace(MYACCOUNT_URL);
         return;
       }
     }
@@ -848,7 +859,7 @@ function Signin({
     
     if (returnUrl !== '/') {
       // Redirect to myaccount with returnUrl
-      window.location.href = `${MYACCOUNT_URL}${returnUrl.startsWith('/') ? returnUrl : '/' + returnUrl}`;
+      window.location.replace(`${MYACCOUNT_URL}${returnUrl.startsWith('/') ? returnUrl : '/' + returnUrl}`);
       return;
     }
 
@@ -884,7 +895,7 @@ function Signin({
 
     // Default redirect to myaccount
     toast.success("Login successful!");
-    window.location.href = MYACCOUNT_URL;
+    window.location.replace(MYACCOUNT_URL);
   };
 
   const handleRequestOTP = async (recaptcha: string) => {
@@ -943,7 +954,7 @@ function Signin({
             const cookieExpiry = new Date();
             cookieExpiry.setDate(cookieExpiry.getDate() + 400); // 400 days expiry for cookie
             const domain = import.meta.env.VITE_domainForCookie;
-            let cookieString = `${deviceData.key}=${deviceData.value}; expires=${cookieExpiry.toUTCString()}; path=/; SameSite=Strict`;
+            let cookieString = `${deviceData.key}=${deviceData.value}; expires=${cookieExpiry.toUTCString()}; path=/;`;
             if (domain && !window.location.hostname.includes('localhost')) {
               cookieString += `; domain=${domain}`;
             }
@@ -977,7 +988,7 @@ function Signin({
           const cookieExpiry = new Date();
           cookieExpiry.setDate(cookieExpiry.getDate() + 400); // 400 days expiry for cookie
           const domain = import.meta.env.VITE_domainForCookie;
-          let cookieString = `${deviceData.key}=${deviceData.value}; expires=${cookieExpiry.toUTCString()}; path=/; SameSite=Strict`;
+          let cookieString = `${deviceData.key}=${deviceData.value}; expires=${cookieExpiry.toUTCString()}; path=/;`;
           if (domain && !window.location.hostname.includes('localhost')) {
             cookieString += `; domain=${domain}`;
           }
@@ -1052,7 +1063,7 @@ function Signin({
             const cookieExpiry = new Date();
             cookieExpiry.setDate(cookieExpiry.getDate() + 400); // 400 days expiry for cookie
             const domain = import.meta.env.VITE_domainForCookie;
-            let cookieString = `${deviceData.key}=${deviceData.value}; expires=${cookieExpiry.toUTCString()}; path=/; SameSite=Strict`;
+            let cookieString = `${deviceData.key}=${deviceData.value}; expires=${cookieExpiry.toUTCString()}; path=/;`;
             if (domain && !window.location.hostname.includes('localhost')) {
               cookieString += `; domain=${domain}`;
             }
@@ -1105,7 +1116,7 @@ function Signin({
         localStorage.removeItem("logininprogress");
 
         toast.success("Login successful!");
-        window.location.href = MYACCOUNT_URL;
+        window.location.replace(MYACCOUNT_URL);
       } else {
         const errorMessage = res.data?.data?.message || "Verification failed! Please try again";
         toast.error(errorMessage);
@@ -1312,7 +1323,7 @@ function Signin({
           const csrfToken = respData?.CSRF_COOKIE || response.data?.CSRF_COOKIE;
           const expiryDate = new Date();
           expiryDate.setDate(expiryDate.getDate() + 10);
-          document.cookie = `csrftoken=${csrfToken}; expires=${expiryDate.toUTCString()}; path=/; SameSite=Strict`;
+          document.cookie = `csrftoken=${csrfToken}; expires=${expiryDate.toUTCString()}; path=/;`;
         }
 
         // Get auth data from stored response (tokens are already in cookies)
@@ -1359,7 +1370,7 @@ function Signin({
             const cookie_value = expiryDate.toString();
             const domain = import.meta.env.VITE_domainForCookie;
             
-            let cookieString = `${cookie_name}=${cookie_value}; expires=${cookie_expiry_date.toUTCString()}; path=/; SameSite=Strict`;
+            let cookieString = `${cookie_name}=${cookie_value}; expires=${cookie_expiry_date.toUTCString()}; path=/;`;
             if (domain && !window.location.hostname.includes('localhost')) {
               cookieString += `; domain=${domain}`;
             }
@@ -1375,7 +1386,7 @@ function Signin({
             const cookie_value = expiryDate.toString();
             const domain = import.meta.env.VITE_domainForCookie;
             
-            let cookieString = `${cookie_name}=${cookie_value}; expires=${cookie_expiry.toUTCString()}; path=/; SameSite=Strict`;
+            let cookieString = `${cookie_name}=${cookie_value}; expires=${cookie_expiry.toUTCString()}; path=/;`;
             if (domain && !window.location.hostname.includes('localhost')) {
               cookieString += `; domain=${domain}`;
             }

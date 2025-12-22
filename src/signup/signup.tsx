@@ -108,7 +108,7 @@ function SignupForm({
       }
       else{
         // navigate('/');
-        window.location.href = MYACCOUNT_URL;
+        window.location.replace(MYACCOUNT_URL);
         return;
       }
     }
@@ -116,7 +116,7 @@ function SignupForm({
 
   // Cleanup effect: Remove login progress flag if user exists
   useEffect(() => {
-    const authLocalStorage = JSON.parse(localStorage.getItem("currentUser") || "null");
+    const authLocalStorage = getCookie('user') || JSON.parse(localStorage.getItem("currentUser") || "null");
     
     if (!authLocalStorage && localStorage.getItem("logininprogress") === "yes") {
       localStorage.removeItem("logininprogress");
@@ -316,7 +316,7 @@ function SignupForm({
     // }
 
     // Check if user already exists
-    if (localStorage.getItem("currentUser")) {
+    if (localStorage.getItem("currentUser") || getCookie('user')) {
       toast.error("You are already logged in");
       return;
     }
@@ -412,10 +412,10 @@ function SignupForm({
   const handleGoogleSignup = () => {
     try {
       // Check if user already exists
-      const authLocalStorage = JSON.parse(localStorage.getItem("currentUser") || "null");
+      const authLocalStorage = getCookie('user') || JSON.parse(localStorage.getItem("currentUser") || "null");
       if (authLocalStorage !== null) {
         toast.error("You are already logged in");
-        window.location.href = import.meta.env.VITE_MYACCOUNT_URL;
+        window.location.replace(import.meta.env.VITE_MYACCOUNT_URL);
         return;
       }
 
@@ -471,7 +471,7 @@ function SignupForm({
     // }
 
     // Check if user already exists
-    if (localStorage.getItem("currentUser")) {
+    if (localStorage.getItem("currentUser") || getCookie('user')) {
       toast.error("You are already logged in");
       return;
     }
