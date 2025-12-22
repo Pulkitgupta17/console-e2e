@@ -296,6 +296,9 @@ function Signin({
   }, []);
 
   useEffect(() => {
+    if(!getCookie('token')){
+      removeCookie('user');
+    }  
     localStorage.setItem('password_expired', 'false');
   }, []);
 

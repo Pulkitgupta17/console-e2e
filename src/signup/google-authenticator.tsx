@@ -240,7 +240,7 @@ function GoogleAuthenticator({
             )}
 
             {/* Lost Key Button */}
-            {!useBackupCode && (
+            {/* {!useBackupCode && (
               <div className="text-center">
                 <button
                   type="button"
@@ -251,7 +251,7 @@ function GoogleAuthenticator({
                   {lostKeyLoading ? "Loading..." : "Lost your Google Authenticator key?"}
                 </button>
               </div>
-            )}
+            )} */}
 
             {/* Verify Button */}
             <Button

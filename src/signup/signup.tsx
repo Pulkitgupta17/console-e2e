@@ -90,6 +90,9 @@ function SignupForm({
 
   // Capture UTM parameters when signup page loads
   useEffect(() => {
+    if(!getCookie('token')){
+      removeCookie('user');
+    }  
     captureUTMParameters();
   }, []);
 

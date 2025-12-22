@@ -146,7 +146,7 @@ export interface PasswordStrengthOptions {
 
 export interface PasswordStrengthResult {
   score: number;
-  strength: 'weak' | 'fair' | 'good' | 'strong';
+  strength: 'Weak' | 'Fair' | 'Good' | 'Strong';
   color: string;
   bgColor?: string;
   textColor: string;
@@ -166,7 +166,7 @@ export const calculatePasswordStrength = (
   if (!password) {
     return {
       score: 0,
-      strength: 'weak',
+      strength: 'Weak',
       color: 'from-red-500 to-red-600',
       bgColor: 'bg-red-500/20',
       textColor: 'text-red-400',
@@ -213,23 +213,23 @@ export const calculatePasswordStrength = (
   if (requireSpecialChars && checks.special) score += pointsPerCheck;
 
   // Determine strength level
-  let strength: 'weak' | 'fair' | 'good' | 'strong' = 'weak';
+  let strength: 'Weak' | 'Fair' | 'Good' | 'Strong' = 'Weak';
   let color = 'from-red-500 to-red-600';
   let bgColor = 'bg-red-500/20';
   let textColor = 'text-red-400';
 
   if (score >= 75) {
-    strength = 'strong';
+    strength = 'Strong';
     color = 'from-emerald-500 to-emerald-600';
     bgColor = 'bg-emerald-500/20';
     textColor = 'text-emerald-400';
   } else if (score >= 50) {
-    strength = 'good';
+    strength = 'Good';
     color = 'from-cyan-500 to-cyan-600';
     bgColor = 'bg-cyan-500/20';
     textColor = 'text-cyan-400';
   } else if (score >= 25) {
-    strength = 'fair';
+    strength = 'Fair';
     color = 'from-yellow-500 to-yellow-600';
     bgColor = 'bg-yellow-500/20';
     textColor = 'text-yellow-400';
